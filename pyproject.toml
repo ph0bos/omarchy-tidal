@@ -17,3 +17,5 @@ ignore = [
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]
+# tests/ on the path so the module loader helper is importable.
+pythonpath = ["tests"]

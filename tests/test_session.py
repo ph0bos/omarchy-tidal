@@ -1,11 +1,9 @@
 """URI parsing. mopidy-tidal emits two shapes for the same track."""
 
-import sys
-from pathlib import Path
+from _backend import load
 
-sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "backend"))
-
-from mopidy_omarchy_tidal.session import entity_id, track_id  # noqa: E402
+_session = load("session")
+entity_id, track_id = _session.entity_id, _session.track_id
 
 
 def test_short_track_uri():

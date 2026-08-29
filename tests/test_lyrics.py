@@ -1,11 +1,8 @@
 """LRC parsing: what drives the synced-lyrics highlight."""
 
-import sys
-from pathlib import Path
+from _backend import load
 
-sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "backend"))
-
-from mopidy_omarchy_tidal.lyrics import parse_lrc  # noqa: E402
+parse_lrc = load("lyrics").parse_lrc
 
 
 def test_parses_centiseconds():

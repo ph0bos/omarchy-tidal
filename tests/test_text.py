@@ -1,11 +1,8 @@
 """TIDAL's editorial copy carries inline markup that must never reach the UI."""
 
-import sys
-from pathlib import Path
+from _backend import load
 
-sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "backend"))
-
-from mopidy_omarchy_tidal.text import clean  # noqa: E402
+clean = load("text").clean
 
 
 def test_strips_wimplink_and_keeps_label():

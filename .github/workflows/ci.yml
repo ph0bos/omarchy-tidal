@@ -32,7 +32,9 @@ jobs:
         with:
           python-version: "3.12"
       - name: Install tooling
-        run: python -m pip install --upgrade pip ruff pytest requests
+        # tidalapi is imported by session.py; mopidy is deliberately not
+        # installed, since the modules under test do not need it.
+        run: python -m pip install --upgrade pip ruff pytest requests tidalapi
       - name: Lint
         run: ruff check backend scripts tests
       - name: Test
