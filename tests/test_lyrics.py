@@ -27,13 +27,13 @@ def test_no_fraction():
 
 def test_repeated_stamps_expand_to_one_entry_each():
     lines = parse_lrc("[00:10.00][01:10.00]Chorus")
-    assert [l["time_ms"] for l in lines] == [10000, 70000]
-    assert all(l["text"] == "Chorus" for l in lines)
+    assert [x["time_ms"] for x in lines] == [10000, 70000]
+    assert all(x["text"] == "Chorus" for x in lines)
 
 
 def test_output_is_sorted_by_time():
     lines = parse_lrc("[00:30.00]late\n[00:10.00]early")
-    assert [l["time_ms"] for l in lines] == [10000, 30000]
+    assert [x["time_ms"] for x in lines] == [10000, 30000]
 
 
 def test_lines_without_stamps_are_dropped():
