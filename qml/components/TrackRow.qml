@@ -190,7 +190,9 @@ Item {
         anchors.fill: parent
         radius: art.radius
         visible: root.playing
-        color: Qt.rgba(0, 0, 0, 0.55)
+        // Theme-derived, like every other wash over artwork.
+        color: Qt.rgba(Color.menu.background.r, Color.menu.background.g,
+                       Color.menu.background.b, 0.62)
 
         Text {
           textFormat: Text.PlainText

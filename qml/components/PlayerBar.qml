@@ -27,6 +27,13 @@ Item {
   readonly property real length: svc ? svc.length : 0
   readonly property real progress: length > 0 ? Math.max(0, Math.min(1, position / length)) : 0
 
+  // Scrims and labels that sit on top of album art. Derived from the theme
+  // rather than hardcoded black and white: Omarchy ships light themes, and a
+  // black wash under white text is only correct on half of them.
+  readonly property color scrim: Qt.rgba(Color.menu.background.r, Color.menu.background.g,
+                                         Color.menu.background.b, 0.45)
+  readonly property color onArt: Color.menu.text
+
   // Clicking the artwork expands to the full now-playing view and clicking it
   // again contracts back, the way the native TIDAL desktop app behaves. The
   // host owns the view state; the bar only reports the intent and is told
@@ -76,8 +83,8 @@ Item {
       Rectangle {
         anchors.fill: parent
         radius: Style.space(3)
-        color: "#000000"
-        opacity: artHover.containsMouse ? 0.45 : 0
+        color: root.scrim
+        opacity: artHover.containsMouse ? 1 : 0
         Behavior on opacity { NumberAnimation { duration: 120 } }
       }
 
@@ -85,7 +92,7 @@ Item {
         textFormat: Text.PlainText
         anchors.centerIn: parent
         text: root.expanded ? "\uf066" : "\uf065"
-        color: "#FFFFFF"
+        color: root.onArt
         opacity: artHover.containsMouse ? 0.95 : 0
         font.family: root.fontFamily
         font.pixelSize: Style.font.bodySmall

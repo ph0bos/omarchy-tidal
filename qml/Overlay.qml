@@ -270,13 +270,19 @@ Item {
             anchors.verticalCenter: parent.verticalCenter
             spacing: Style.space(10)
 
+            // Mark and wordmark sit on one baseline, and the mark is drawn to
+            // the height of the capitals rather than to the text's full line
+            // box, which includes ascent and descent the letters never fill.
+            // Centring the two boxes against each other is what left the mark
+            // looking like it was floating above the word.
             TideMark {
-              anchors.verticalCenter: parent.verticalCenter
-              gridSize: Style.font.heading * 1.5
+              anchors.baseline: wordmark.baseline
+              markHeight: Math.round(Style.font.heading * 0.86)
               color: Color.accent
             }
 
             Text {
+              id: wordmark
               textFormat: Text.PlainText
               anchors.verticalCenter: parent.verticalCenter
               text: "TIDAL"
@@ -284,6 +290,7 @@ Item {
               font.family: root.fontFamily
               font.pixelSize: Style.font.heading
               font.weight: Font.DemiBold
+              font.letterSpacing: 0.6
             }
 
           }

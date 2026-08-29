@@ -1,12 +1,17 @@
-<!-- Crest - the Omarchy Tidal plugin mark.
+<!-- Crest - the Omarchy TIDAL plugin mark.
      Level-meter bars whose tops trace a breaking wave.
-     Drawn in currentColor so it inherits the active Omarchy theme.
-     32x32 grid with a 3.2 stroke: every line lands on a whole pixel at 16px. -->
+
+     Square terminals on a whole-unit grid, because that is the language
+     Omarchy's own logo speaks: orthogonal, coarse, no curves anywhere. The
+     mark is drawn as rectangles rather than strokes so nothing depends on a
+     line cap, and every edge lands on a whole pixel at 16px and at 32px.
+
+     currentColor, so it inherits whatever theme is active. -->
 <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 32 32" width="32" height="32"
-     fill="none" stroke="currentColor" stroke-width="3.2" stroke-linecap="round">
-  <path d="M4 18V27"/>
-  <path d="M10 10V27"/>
-  <path d="M16 5V27"/>
-  <path d="M22 9V27"/>
-  <path d="M28 15V27"/>
+     fill="currentColor">
+  <rect x="2"  y="18" width="4" height="10"/>
+  <rect x="8"  y="10" width="4" height="18"/>
+  <rect x="14" y="4"  width="4" height="24"/>
+  <rect x="20" y="8"  width="4" height="20"/>
+  <rect x="26" y="14" width="4" height="14"/>
 </svg>

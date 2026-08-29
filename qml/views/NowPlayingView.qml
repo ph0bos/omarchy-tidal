@@ -41,6 +41,13 @@ Item {
   readonly property string trackUri: svc ? svc.trackUri : ""
   // Through the companion's cache when it is a Tidal asset, untouched when it
   // is anything else -- MPRIS art can be a local file.
+  // Scrims and labels that sit on top of album art. Derived from the theme
+  // rather than hardcoded black and white: Omarchy ships light themes, and a
+  // black wash under white text is only correct on half of them.
+  readonly property color scrim: Qt.rgba(Color.menu.background.r, Color.menu.background.g,
+                                         Color.menu.background.b, 1)
+  readonly property color onArt: Color.menu.text
+
   readonly property string artUrl: svc ? Tidal.artProxy(svc.artUrl, 640) : ""
 
   // ---- lyrics -------------------------------------------------------------
@@ -54,13 +61,23 @@ Item {
   readonly property string plain: lyrics && lyrics.plain ? String(lyrics.plain) : ""
   readonly property string source: lyrics && lyrics.source ? String(lyrics.source) : ""
   readonly property bool hasSynced: synced.length > 0
+
+  // The sheet as it is displayed: the sung lines with instrumental markers
+  // folded in. Held as one list so the view has a single model and the active
+  // index means the same thing for both kinds of entry.
+  readonly property var lines: root.hasSynced ? Lrc.withGaps(root.synced, 10000) : []
+  readonly property real gapProgress: {
+    var entry = root.lines[root.activeIndex]
+    if (!entry || !entry.gap) return 0
+    return Lrc.gapProgress(entry, (root.svc ? root.svc.position : 0) * 1000 + root.leadMs)
+  }
   readonly property bool hasLyrics: hasSynced || plain !== ""
 
   // Lyrics displayed dead-on read late; a small lead lands the highlight with
   // the vocal rather than after it.
   readonly property int leadMs: 250
   readonly property int activeIndex: root.hasSynced
-    ? Lrc.activeIndex(root.synced, (root.svc ? root.svc.position : 0) * 1000 + root.leadMs)
+    ? Lrc.activeIndex(root.lines, (root.svc ? root.svc.position : 0) * 1000 + root.leadMs)
     : -1
 
   onActiveIndexChanged: if (root.activeIndex >= 0) lyricList.centerOn(root.activeIndex)
@@ -148,8 +165,8 @@ Item {
   Rectangle {
     anchors.fill: parent
     gradient: Gradient {
-      GradientStop { position: 0.0; color: Qt.rgba(0, 0, 0, 0.15) }
-      GradientStop { position: 1.0; color: Qt.rgba(0, 0, 0, 0.55) }
+      GradientStop { position: 0.0; color: Qt.rgba(root.scrim.r, root.scrim.g, root.scrim.b, 0.15) }
+      GradientStop { position: 1.0; color: Qt.rgba(root.scrim.r, root.scrim.g, root.scrim.b, 0.55) }
     }
   }
 
@@ -201,8 +218,8 @@ Item {
         Rectangle {
           anchors.fill: parent
           radius: Style.space(6)
-          color: "#000000"
-          opacity: artHover.containsMouse ? 0.32 : 0
+          color: Qt.rgba(root.scrim.r, root.scrim.g, root.scrim.b, 0.32)
+          opacity: artHover.containsMouse ? 1 : 0
           Behavior on opacity { NumberAnimation { duration: Design.fast } }
         }
 
@@ -213,7 +230,7 @@ Item {
           text: root.face === "artwork"
             ? (root.hasLyrics ? "Lyrics" : "No lyrics")
             : "Artwork"
-          color: "#FFFFFF"
+          color: root.onArt
           opacity: artHover.containsMouse ? 0.92 : 0
           font.family: root.fontFamily
           font.pixelSize: Style.font.bodySmall
@@ -357,48 +374,153 @@ Item {
           anchors.bottom: parent.bottom
           visible: root.hasSynced
           clip: true
-          model: root.synced
-          spacing: Style.space(8)
+          model: root.lines
+          spacing: Style.space(15)
           boundsBehavior: Flickable.StopAtBounds
-          preferredHighlightBegin: height / 2 - Style.space(24)
-          preferredHighlightEnd: height / 2 + Style.space(24)
-          highlightRangeMode: ListView.ApplyRange
 
+          // No highlight range: it moves contentY on its own and would fight
+          // the glide below for the same property.
+
+          // Apple Music and TIDAL both slide the sheet rather than cutting to
+          // the next line, and the movement is most of what makes a lyric
+          // sheet feel like it is keeping time with the song. The view is
+          // asked where the line would land, then animated there.
           function centerOn(index) {
             if (index < 0 || index >= count) return
+            var from = contentY
             positionViewAtIndex(index, ListView.Center)
+            var to = contentY
+            if (Math.abs(to - from) < 1) return
+            contentY = from
+            glide.to = to
+            glide.restart()
           }
 
-          delegate: Text {
-            textFormat: Text.PlainText
+          NumberAnimation {
+            id: glide
+            target: lyricList
+            property: "contentY"
+            duration: Design.slow
+            easing.type: Easing.OutCubic
+          }
+
+          // A drag should not be fought by the next line arriving mid-gesture.
+          onMovingChanged: if (moving) glide.stop()
+
+          delegate: Item {
             id: lyricLine
             required property int index
             required property var modelData
 
-            width: Math.min(lyricList.width, Style.space(520))
-            text: String(modelData.text || "")
-            wrapMode: Text.WordWrap
-
+            readonly property bool isGap: modelData.gap === true
             readonly property bool isActive: lyricLine.index === root.activeIndex
             readonly property bool isPast: lyricLine.index < root.activeIndex
 
-            color: isActive ? root.foreground : Color.muted
-            opacity: isActive ? 1.0 : (isPast ? 0.42 : 0.66)
-            font.family: root.fontFamily
-            font.pixelSize: isActive ? Style.font.subtitle : Style.font.body
-            font.weight: isActive ? Font.DemiBold : Font.Normal
+            width: lyricList.width
+            height: lyricLine.isGap ? dots.height : line.implicitHeight
 
-            Behavior on opacity { NumberAnimation { duration: Design.base } }
-            Behavior on font.pixelSize { NumberAnimation { duration: Design.fast } }
+            // ---- a sung line ----
+            Text {
+              id: line
+              textFormat: Text.PlainText
+              visible: !lyricLine.isGap
+              // A lyric sheet set the full width of the pane is a paragraph,
+              // not a song; capping the measure keeps it a column you read
+              // down rather than across.
+              width: Math.min(lyricList.width, Style.space(520))
+              text: String(lyricLine.modelData.text || "")
+              wrapMode: Text.WordWrap
+              lineHeight: 1.25
+
+              // One colour, dimmed by opacity. Colouring the inactive lines
+              // muted *and* fading them dimmed them twice, which left a sheet
+              // you had to work to read at all.
+              color: root.foreground
+              opacity: lyricLine.isActive ? 1.0
+                       : (hover.containsMouse ? 0.85 : (lyricLine.isPast ? 0.42 : 0.62))
+              font.family: root.fontFamily
+              // A real jump, not a nudge: the line being sung should be
+              // findable without reading any of the others.
+              font.pixelSize: lyricLine.isActive ? Style.font.heading : Style.font.subtitle
+              font.weight: lyricLine.isActive ? Font.DemiBold : Font.Normal
+
+              Behavior on opacity { NumberAnimation { duration: Design.base } }
+              Behavior on color { ColorAnimation { duration: Design.fast } }
+              Behavior on font.pixelSize {
+                NumberAnimation { duration: Design.base; easing.type: Easing.OutCubic }
+              }
+            }
+
+            // ---- an instrumental ----
+            //
+            // Three dots that fill as the gap runs down, so a long solo reads
+            // as the song still playing rather than as a sheet that has stuck.
+            Row {
+              id: dots
+              visible: lyricLine.isGap
+              spacing: Style.space(6)
+              height: Style.space(20)
+
+              Repeater {
+                model: 3
+
+                Rectangle {
+                  id: dot
+                  required property int index
+
+                  anchors.verticalCenter: parent.verticalCenter
+                  width: Style.space(7)
+                  height: width
+                  radius: width / 2
+                  color: root.foreground
+                  // Each dot owns a third of the gap, and lights when the
+                  // playhead reaches it.
+                  readonly property real reached:
+                    lyricLine.isActive
+                      ? Math.max(0, Math.min(1, root.gapProgress * 3 - dot.index))
+                      : 0
+                  opacity: 0.18 + 0.72 * reached
+
+                  Behavior on opacity { NumberAnimation { duration: Design.base } }
+                }
+              }
+            }
 
             MouseArea {
+              id: hover
               anchors.fill: parent
+              hoverEnabled: true
               cursorShape: Qt.PointingHandCursor
               // The one interaction a synced lyric sheet should always have.
               onClicked: {
                 if (root.svc) root.svc.seekTo(Number(lyricLine.modelData.time_ms) || 0)
               }
             }
+          }
+        }
+
+        // The sheet dissolves at the edges rather than being cut off by them.
+        Rectangle {
+          anchors.top: lyricList.top
+          anchors.left: lyricList.left
+          anchors.right: lyricList.right
+          height: Style.space(36)
+          visible: root.hasSynced
+          gradient: Gradient {
+            GradientStop { position: 0.0; color: Qt.rgba(root.scrim.r, root.scrim.g, root.scrim.b, 0.85) }
+            GradientStop { position: 1.0; color: Qt.rgba(root.scrim.r, root.scrim.g, root.scrim.b, 0) }
+          }
+        }
+
+        Rectangle {
+          anchors.bottom: lyricList.bottom
+          anchors.left: lyricList.left
+          anchors.right: lyricList.right
+          height: Style.space(48)
+          visible: root.hasSynced
+          gradient: Gradient {
+            GradientStop { position: 0.0; color: Qt.rgba(root.scrim.r, root.scrim.g, root.scrim.b, 0) }
+            GradientStop { position: 1.0; color: Qt.rgba(root.scrim.r, root.scrim.g, root.scrim.b, 0.9) }
           }
         }
 

@@ -25,6 +25,13 @@ Item {
   readonly property bool hasTrack: svc ? svc.hasTrack : false
   readonly property bool playing: svc ? svc.playing : false
 
+  // Scrims and labels that sit on top of album art. Derived from the theme
+  // rather than hardcoded black and white: Omarchy ships light themes, and a
+  // black wash under white text is only correct on half of them.
+  readonly property color scrim: Qt.rgba(Color.popups.background.r, Color.popups.background.g,
+                                         Color.popups.background.b, 0.4)
+  readonly property color onArt: Color.popups.text
+
   implicitHeight: column.implicitHeight
 
   Column {
@@ -50,8 +57,8 @@ Item {
         Rectangle {
           anchors.fill: parent
           radius: Style.space(4)
-          color: "#000000"
-          opacity: artHover.containsMouse ? 0.4 : 0
+          color: root.scrim
+          opacity: artHover.containsMouse ? 1 : 0
           Behavior on opacity { NumberAnimation { duration: Design.fast } }
         }
 
@@ -59,7 +66,7 @@ Item {
           textFormat: Text.PlainText
           anchors.centerIn: parent
           text: "\uf065"
-          color: "#FFFFFF"
+          color: root.onArt
           opacity: artHover.containsMouse ? 0.95 : 0
           font.family: root.fontFamily
           font.pixelSize: Style.font.body

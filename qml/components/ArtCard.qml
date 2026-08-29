@@ -45,6 +45,13 @@ Item {
   // different affordances for one state.
   readonly property bool hot: hover.containsMouse || root.selected
 
+  // Scrims and labels that sit on top of album art. Derived from the theme
+  // rather than hardcoded black and white: Omarchy ships light themes, and a
+  // black wash under white text is only correct on half of them.
+  readonly property color scrim: Qt.rgba(Color.menu.background.r, Color.menu.background.g,
+                                         Color.menu.background.b, 0.55)
+  readonly property color onArt: Color.menu.text
+
   implicitWidth: Style.space(Design.cardIdeal)
   height: width + labels.implicitHeight + Style.space(9)
 
@@ -75,8 +82,8 @@ Item {
       radius: art.radius
       opacity: root.hot ? 1 : 0
       gradient: Gradient {
-        GradientStop { position: 0.55; color: Qt.rgba(0, 0, 0, 0) }
-        GradientStop { position: 1.0;  color: Qt.rgba(0, 0, 0, 0.45) }
+        GradientStop { position: 0.55; color: Qt.rgba(root.scrim.r, root.scrim.g, root.scrim.b, 0) }
+        GradientStop { position: 1.0;  color: Qt.rgba(root.scrim.r, root.scrim.g, root.scrim.b, 0.45) }
       }
       Behavior on opacity { NumberAnimation { duration: Design.fast } }
     }
@@ -103,7 +110,7 @@ Item {
       width: Style.space(26)
       height: width
       radius: width / 2
-      color: playHover.containsMouse ? Color.accent : Qt.rgba(0, 0, 0, 0.55)
+      color: playHover.containsMouse ? Color.accent : root.scrim
       opacity: root.hot ? 1 : 0
 
       // Rises into place rather than blinking on. Animated through a
@@ -123,7 +130,7 @@ Item {
         // Nudged right: a play triangle's optical centre is left of its box.
         anchors.horizontalCenterOffset: Style.space(1)
         text: "\uf04b"
-        color: playHover.containsMouse ? Color.menu.background : "#FFFFFF"
+        color: playHover.containsMouse ? Color.menu.background : root.onArt
         font.family: root.fontFamily
         font.pixelSize: Style.font.caption
       }

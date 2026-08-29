@@ -227,3 +227,66 @@ test("librarySection maps only the four favourites lists", () => {
   assert.equal(Library.librarySection("tidal:home"), "");
   assert.equal(Library.librarySection(""), "");
 });
+
+// ---- Lrc.js: instrumental gaps ----------------------------------------------
+
+const sung = [
+  { time_ms: 0, text: "one" },
+  { time_ms: 2000, text: "two" },
+  { time_ms: 20000, text: "after the solo" },
+];
+
+test("withGaps marks a long instrumental and leaves short ones alone", () => {
+  const marked = Lrc.withGaps(sung, 5000);
+  assert.equal(marked.length, 4);
+  assert.equal(marked[0].text, "one");
+  assert.equal(marked[1].text, "two");
+  assert.equal(marked[2].gap, true);
+  assert.equal(marked[3].text, "after the solo");
+});
+
+test("a gap starts after its line has had time to be read", () => {
+  const gap = Lrc.withGaps(sung, 5000)[2];
+  // 18s of silence: the marker waits 2.5s (the cap) and spans the rest.
+  assert.equal(gap.time_ms, 4500);
+  assert.equal(gap.duration, 15500);
+});
+
+test("gap markers keep activeIndex working on the combined list", () => {
+  const marked = Lrc.withGaps(sung, 5000);
+  assert.equal(Lrc.activeIndex(marked, 2100), 1);
+  assert.equal(Lrc.activeIndex(marked, 9000), 2);
+  assert.equal(marked[Lrc.activeIndex(marked, 9000)].gap, true);
+  assert.equal(Lrc.activeIndex(marked, 20500), 3);
+});
+
+test("gapProgress runs 0 to 1 across the gap and clamps outside it", () => {
+  const gap = Lrc.withGaps(sung, 5000)[2];
+  assert.equal(Lrc.gapProgress(gap, 4500), 0);
+  assert.equal(Lrc.gapProgress(gap, 12250), 0.5);
+  assert.equal(Lrc.gapProgress(gap, 20000), 1);
+  assert.equal(Lrc.gapProgress(gap, 0), 0);
+  assert.equal(Lrc.gapProgress({ text: "not a gap" }, 5000), 0);
+});
+
+test("withGaps copes with an empty or single-line sheet", () => {
+  assert.equal(Lrc.withGaps([], 5000).length, 0);
+  assert.equal(Lrc.withGaps(null, 5000).length, 0);
+  assert.equal(Lrc.withGaps([{ time_ms: 0, text: "only" }], 5000).length, 1);
+});
+
+test("withGaps marks the intro when the first line is late", () => {
+  const late = [{ time_ms: 30000, text: "first words" }];
+  const marked = Lrc.withGaps(late, 10000);
+  assert.equal(marked.length, 2);
+  assert.equal(marked[0].gap, true);
+  assert.equal(marked[0].time_ms, 0);
+  assert.equal(marked[0].duration, 30000);
+  // And the playhead sitting in the intro finds it.
+  assert.equal(Lrc.activeIndex(marked, 5000), 0);
+});
+
+test("withGaps leaves a prompt first line alone", () => {
+  const prompt = [{ time_ms: 1200, text: "straight in" }];
+  assert.equal(Lrc.withGaps(prompt, 10000).length, 1);
+});

@@ -37,7 +37,9 @@ Every other way of playing TIDAL on Linux gives something up:
 This takes a third path: a **headless** backend with the entire interface built
 into the Omarchy shell. Now-playing lives in the bar. Search is `SUPER+M`. Media
 keys, the OSD and the volume panel behave exactly as they do for everything
-else, and every surface follows your active theme.
+else, and every surface follows your active theme — including the washes over
+album art, which are drawn from the theme's own colours rather than from black,
+so the light themes look deliberate too.
 
 It is also the only TIDAL plugin in a catalogue of 1,700+.
 
@@ -129,9 +131,14 @@ Click the artwork — or press `L` — and it shrinks aside for the lyrics:
 
 ![Lyrics](docs/screenshots/lyrics.png)
 
-Time-synced and scrolling with playback; click any line to seek to it. `I` gives
-you the record instead — year, length, credits, editorial review, and exactly
-what is coming out of the speakers.
+Time-synced, and the sheet glides rather than cutting — the line being sung is
+larger, brighter and unmistakable among the rest, and clicking any line seeks to
+it. A long instrumental is marked with dots that fill as it runs down, so a solo
+reads as the song still playing rather than as a sheet that has stuck; the intro
+before the first line is marked the same way.
+
+`I` gives you the record instead — year, length, credits, editorial review, and
+exactly what is coming out of the speakers.
 
 ### Playlists
 

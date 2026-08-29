@@ -1,11 +1,19 @@
+<!-- The same Crest mark as an application icon.
+
+     Full bleed on a square, the way Omarchy's own icon is drawn: no rounded
+     tile, no gloss, a single high-contrast mark on near-black. The palette is
+     TIDAL's own white on black, which is also the highest contrast this shape
+     can carry at 16px in a bar. -->
 <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512" width="512" height="512">
-  <rect width="512" height="512" rx="114" fill="#0E1D20"/>
-  <g transform="translate(96 96) scale(10)" fill="none" stroke="#E4EDEB"
-     stroke-width="3.2" stroke-linecap="round">
-    <path d="M4 18V27"/>
-    <path d="M10 10V27"/>
-    <path d="M16 5V27"/>
-    <path d="M22 9V27"/>
-    <path d="M28 15V27"/>
+  <rect width="512" height="512" fill="#0D0D0D"/>
+  <!-- translate+scale centres the mark's content (x 2..30, y 4..28) rather
+       than its 32-unit grid, so the optical centre is the real one, and fills
+       the tile the way Omarchy's own icon does rather than floating in it. -->
+  <g transform="translate(16 16) scale(15)" fill="#F2F2F2">
+    <rect x="2"  y="18" width="4" height="10"/>
+    <rect x="8"  y="10" width="4" height="18"/>
+    <rect x="14" y="4"  width="4" height="24"/>
+    <rect x="20" y="8"  width="4" height="20"/>
+    <rect x="26" y="14" width="4" height="14"/>
   </g>
 </svg>

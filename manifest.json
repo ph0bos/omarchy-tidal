@@ -2,9 +2,9 @@
   "schemaVersion": 1,
   "id": "quickshell.tidal",
   "name": "TIDAL",
-  "version": "0.3.3",
+  "version": "0.3.4",
   "author": "stevenr",
-  "description": "TIDAL in Quickshell with true hi-res lossless playback — up to 24-bit/192kHz FLAC, not the 320 kbps every other music plugin settles for.",
+  "description": "Hi-res lossless TIDAL inside the Omarchy shell — 24-bit/192kHz FLAC, a personalised home page, artist and album pages, synced lyrics, and a mini player in the bar.",
   "kinds": [
     "service",
     "bar-widget",

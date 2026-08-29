@@ -70,6 +70,10 @@ covers anything leaving for another surface: `Service.osd()` strips angle
 brackets, and "Open in TIDAL" checks the scheme and host before handing a url to
 the desktop opener.
 
+**Nothing is hardcoded black or white.** Omarchy ships light themes, so even
+the washes over album art derive from `Color.menu.background` and
+`Color.menu.text`. A literal `#000000` scrim is a bug on half the themes.
+
 **Do not name a property `data` or `enabled`** — they shadow `QQuickItem`
 members. `data` is the default property; shadowing it breaks child assignment.
 
