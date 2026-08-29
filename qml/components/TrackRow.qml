@@ -24,6 +24,11 @@ Item {
   property bool alive: true
   Component.onDestruction: root.alive = false
 
+  // Queue rows can be taken back out of the queue.
+  property bool removable: false
+
+  signal removed()
+
   signal activated()   // Enter        -> play now
   signal queued()      // Shift+Enter  -> append
   signal opened()      // Right arrow  -> descend
@@ -196,7 +201,8 @@ Item {
 
     Text {
       id: durationLabel
-      anchors.right: chevron.visible ? chevron.left : parent.right
+      anchors.right: removeButton.visible ? removeButton.left
+                     : (chevron.visible ? chevron.left : parent.right)
       anchors.rightMargin: Style.space(10)
       anchors.verticalCenter: parent.verticalCenter
       visible: root.durationText !== ""
@@ -204,6 +210,33 @@ Item {
       color: Color.muted
       font.family: root.fontFamily
       font.pixelSize: Style.font.caption
+    }
+
+    // Only on hover: a row of permanent delete buttons down a queue is a row of
+    // invitations to lose your place.
+    Text {
+      id: removeButton
+      anchors.right: parent.right
+      anchors.rightMargin: Style.space(8)
+      anchors.verticalCenter: parent.verticalCenter
+      visible: root.removable
+      text: "\uf00d"
+      color: removeHover.containsMouse ? Color.urgent : Color.muted
+      opacity: rowHover.containsMouse || removeHover.containsMouse ? 1 : 0
+      font.family: root.fontFamily
+      font.pixelSize: Style.font.caption
+
+      Behavior on opacity { NumberAnimation { duration: Design.fast } }
+      Behavior on color { ColorAnimation { duration: Design.fast } }
+
+      MouseArea {
+        id: removeHover
+        anchors.fill: parent
+        anchors.margins: -Style.space(6)
+        hoverEnabled: true
+        cursorShape: Qt.PointingHandCursor
+        onClicked: root.removed()
+      }
     }
 
     Text {
@@ -223,7 +256,8 @@ Item {
       anchors.left: artSlot.right
       anchors.leftMargin: Style.space(11)
       anchors.right: durationLabel.visible ? durationLabel.left
-                     : (chevron.visible ? chevron.left : parent.right)
+                     : (removeButton.visible ? removeButton.left
+                        : (chevron.visible ? chevron.left : parent.right))
       anchors.rightMargin: Style.space(10)
       anchors.verticalCenter: parent.verticalCenter
       spacing: 2
@@ -285,7 +319,9 @@ Item {
     }
 
     MouseArea {
+      id: rowHover
       anchors.fill: parent
+      hoverEnabled: true
       acceptedButtons: Qt.LeftButton | Qt.MiddleButton
       cursorShape: Qt.PointingHandCursor
       onClicked: function(mouse) {

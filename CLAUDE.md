@@ -147,6 +147,7 @@ and album pages with bios and reviews, a now-playing view with artwork, synced
 lyrics and credits, a spectrum analyser, quick menu, in-shell sign-in,
 keybindings, CI green. Your own albums, artists, tracks and playlists come from
 the companion whole and paged, rather than as browse refs plus a lookup per row.
+The queue can be reordered by removal: jump to an entry, take one out, empty it.
 
 The visual design pass is done and drove the rest of it: one motion vocabulary,
 one artwork tile, one playhead, one grid. Screenshots in `docs/screenshots/` are
@@ -154,7 +155,8 @@ current.
 
 Next, in the order that makes sense:
 
-1. **Playlist editing.** Add to, reorder, remove; create.
+1. **Playlist editing.** Add to, reorder, remove; create. The queue already
+   addresses entries by tlid, which is the same shape the playlist API needs.
 3. **Sleep timer**, and **TIDAL Connect device switching**.
 4. **A settings surface** for the plugin's own options, rather than the widget
    schema being the only place to change anything.

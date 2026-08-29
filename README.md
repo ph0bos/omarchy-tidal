@@ -169,6 +169,9 @@ Inside the player: `/` search · `↑`/`↓` move · `Enter` play · `Shift+Ente
 queue · `→` open · `←`/`Backspace` back · `Tab` switch pane · `Space`
 play/pause · `Esc` close.
 
+In the queue, `Enter` jumps to that track rather than starting a new queue from
+it, `Delete` takes it out, and **Clear** in the header empties the lot.
+
 On Home the arrows walk the artwork grid — up and down between shelves, left and
 right along one — and `Enter` opens a card while `Shift+Enter` starts it, which
 is what the two halves of the card do to the mouse.

@@ -227,7 +227,13 @@ Item {
       var out = []
       for (var i = 0; i < (tlTracks || []).length; i++) {
         var row = Library.fromTrack(tlTracks[i].track)
-        if (row) out.push(row)
+        if (!row) continue
+        // The tracklist id, kept so a row can be removed or played by name.
+        // The same track can be in the queue twice and a uri cannot tell them
+        // apart.
+        row.tlid = tlTracks[i].tlid
+        row.queued = true
+        out.push(row)
       }
       root.rows = out
       root.selectedIndex = 0
@@ -275,8 +281,43 @@ Item {
     return root.rows[root.selectedIndex]
   }
 
+  // In the queue, playing a row means jumping to that entry rather than
+  // starting a new tracklist from it.
+  function playQueueRow(row) {
+    if (!row || row.tlid === undefined) return
+    Rpc.playTlid(row.tlid, null, function(err) { if (root.alive) root.errorText = err })
+  }
+
+  function removeQueueRow(row) {
+    if (!row || row.tlid === undefined) return
+    var gone = row.tlid
+    Rpc.removeTlid(gone, function() {
+      if (!root.alive) return
+      // Drop it locally rather than re-reading the whole tracklist: the list
+      // keeps its scroll position and the cursor stays where the eye is.
+      var next = []
+      for (var i = 0; i < root.rows.length; i++) {
+        if (root.rows[i].tlid !== gone) next.push(root.rows[i])
+      }
+      root.rows = next
+      root.selectedIndex = Math.max(0, Math.min(root.selectedIndex, next.length - 1))
+      if (next.length === 0) root.errorText = "The queue is empty."
+    }, function(err) { if (root.alive) root.errorText = err })
+  }
+
+  function clearQueue() {
+    Rpc.clear(function() {
+      if (!root.alive) return
+      root.rows = []
+      root.selectedIndex = 0
+      root.errorText = "The queue is empty."
+      if (root.svc) root.svc.osd("Queue cleared", "media")
+    }, function(err) { if (root.alive) root.errorText = err })
+  }
+
   function playRow(row) {
     if (!row || !row.uri) return
+    if (row.queued === true) { root.playQueueRow(row); return }
     if (row.type === "track" || row.type === "album" || row.type === "playlist") {
       Rpc.playNow([row.uri], null, function(err) { if (root.alive) root.errorText = err })
     } else {
@@ -470,7 +511,7 @@ Item {
 
       Text {
         anchors.left: parent.left
-        anchors.right: searchField.left
+        anchors.right: clearQueue.visible ? clearQueue.left : searchField.left
         anchors.rightMargin: Style.space(16)
         anchors.verticalCenter: parent.verticalCenter
         // A detail page carries its own name at display size a few pixels
@@ -486,6 +527,29 @@ Item {
         // still true while the page underneath it is arriving.
         opacity: root.loading ? 0.4 : 1
         Behavior on opacity { NumberAnimation { duration: Design.base } }
+      }
+
+      Text {
+        id: clearQueue
+        anchors.right: searchField.left
+        anchors.rightMargin: Style.space(14)
+        anchors.verticalCenter: parent.verticalCenter
+        visible: root.currentUri === "queue" && root.rows.length > 0
+        text: "Clear"
+        color: clearHover.containsMouse ? Color.urgent : Color.muted
+        font.family: root.fontFamily
+        font.pixelSize: Style.font.bodySmall
+
+        Behavior on color { ColorAnimation { duration: Design.fast } }
+
+        MouseArea {
+          id: clearHover
+          anchors.fill: parent
+          anchors.margins: -Style.space(6)
+          hoverEnabled: true
+          cursorShape: Qt.PointingHandCursor
+          onClicked: root.clearQueue()
+        }
       }
 
       TextField {
@@ -675,9 +739,12 @@ Item {
           accent: Color.accent
           fontFamily: root.fontFamily
 
+          removable: root.currentUri === "queue"
+
           onActivated: { root.selectedIndex = index; root.playRow(modelData) }
           onQueued: { root.selectedIndex = index; root.queueRow(modelData) }
           onOpened: { root.selectedIndex = index; root.openRow(modelData) }
+          onRemoved: { root.selectedIndex = index; root.removeQueueRow(modelData) }
         }
       }
     }
@@ -744,6 +811,13 @@ Item {
       event.accepted = true; return
     }
     if (event.key === Qt.Key_Right) { root.openRow(root.currentRow()); event.accepted = true; return }
+    if (root.currentUri === "queue"
+        && (event.key === Qt.Key_Delete
+            || (event.key === Qt.Key_Backspace && !root.sidebarFocused))) {
+      root.removeQueueRow(root.currentRow())
+      event.accepted = true; return
+    }
+
     if (event.key === Qt.Key_Left || event.key === Qt.Key_Backspace) {
       if (root.goBack()) event.accepted = true
       return

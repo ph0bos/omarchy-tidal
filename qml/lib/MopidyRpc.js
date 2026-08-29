@@ -76,6 +76,19 @@ function currentTrack(onOk, onErr) { call("core.playback.get_current_track", nul
 function clear(onOk, onErr)      { call("core.tracklist.clear", null, onOk, onErr) }
 function addUris(uris, onOk, onErr) { call("core.tracklist.add", { uris: uris }, onOk, onErr) }
 function getTracklist(onOk, onErr)  { call("core.tracklist.get_tl_tracks", null, onOk, onErr) }
+// Queue entries are addressed by tlid, not by uri: the same track can sit in
+// the tracklist more than once, and "remove this one" has to mean this one.
+function playTlid(tlid, onOk, onErr) {
+  call("core.playback.play", { tlid: tlid }, onOk, onErr)
+}
+function removeTlid(tlid, onOk, onErr) {
+  call("core.tracklist.remove", { criteria: { tlid: [tlid] } }, onOk, onErr)
+}
+function moveTlid(fromIndex, toIndex, onOk, onErr) {
+  call("core.tracklist.move", { start: fromIndex, end: fromIndex + 1, to_position: toIndex },
+       onOk, onErr)
+}
+
 function setConsume(on, onOk, onErr) { call("core.tracklist.set_consume", { value: !!on }, onOk, onErr) }
 function setRandom(on, onOk, onErr)  { call("core.tracklist.set_random", { value: !!on }, onOk, onErr) }
 function setRepeat(on, onOk, onErr)  { call("core.tracklist.set_repeat", { value: !!on }, onOk, onErr) }
