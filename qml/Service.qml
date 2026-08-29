@@ -417,6 +417,51 @@ Item {
     return shell.summon(pluginId, JSON.stringify(payload)) === true
   }
 
+  // Summon the player straight onto an artist or album page. The overlay
+  // resolves its Loader asynchronously, so the uri travels in the payload
+  // rather than as a call into a view that may not exist yet.
+  // ---- mini player -------------------------------------------------------
+  //
+  // The bar widget registers itself here so a keybinding can open its popup.
+  // The shell's own summon path cannot: it routes a bar-widget panel only for
+  // plugins that are bar widgets and nothing else, and this one also owns an
+  // overlay.
+  property var miniPlayers: []
+
+  function registerMiniPlayer(widget) {
+    var next = root.miniPlayers.slice()
+    next.push(widget)
+    root.miniPlayers = next
+  }
+
+  function unregisterMiniPlayer(widget) {
+    var next = []
+    for (var i = 0; i < root.miniPlayers.length; i++) {
+      if (root.miniPlayers[i] !== widget) next.push(root.miniPlayers[i])
+    }
+    root.miniPlayers = next
+  }
+
+  function toggleMini() {
+    for (var i = 0; i < root.miniPlayers.length; i++) {
+      // A widget destroyed by a hot reload can still be sitting in the list;
+      // reading it throws rather than returning null.
+      try {
+        var widget = root.miniPlayers[i]
+        if (widget && typeof widget.toggleIfFocused === "function"
+            && widget.toggleIfFocused()) return true
+      } catch (e) { /* gone with its bar */ }
+    }
+    return false
+  }
+
+  function openDetail(uri, title) {
+    if (!shell || !uri) return false
+    return shell.summon(pluginId, JSON.stringify({
+      view: "search", uri: String(uri), title: String(title || "")
+    })) === true
+  }
+
   function osd(message, icon) {
     if (!shell) return
     shell.summon("omarchy.osd", JSON.stringify({
@@ -463,6 +508,7 @@ Item {
     function overlay(): string { return root.openView("search") ? "ok" : "unhandled" }
     function search(): string { return root.openView("search") ? "ok" : "unhandled" }
     function nowPlaying(): string { return root.openView("nowPlaying") ? "ok" : "unhandled" }
+    function mini(): string { return root.toggleMini() ? "ok" : "unhandled" }
     function lyrics(): string { return root.openView("nowPlaying", "lyrics") ? "ok" : "unhandled" }
     function info(): string { return root.openView("nowPlaying", "info") ? "ok" : "unhandled" }
     function setup(): string { return root.openView("setup") ? "ok" : "unhandled" }

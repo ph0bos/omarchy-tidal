@@ -202,27 +202,27 @@ function navigation() {
 // Nerd Font glyphs, matched to the icon keys above.
 function glyph(icon) {
   switch (icon) {
-    case "search":   return ""
-    case "home":     return ""
-    case "star":     return ""
-    case "hires":    return ""
-    case "track":    return ""
-    case "album":    return ""
-    case "artist":   return ""
-    case "playlist": return ""
-    case "mix":      return ""
-    case "queue":    return ""
-    default:         return ""
+    case "search":   return "\uf002"
+    case "home":     return "\uf015"
+    case "star":     return "\uf005"
+    case "hires":    return "\uf001"
+    case "track":    return "\uf001"
+    case "album":    return "\uf51f"
+    case "artist":   return "\uf007"
+    case "playlist": return "\uf03a"
+    case "mix":      return "\uf074"
+    case "queue":    return "\uf03a"
+    default:         return "\uf001"
   }
 }
 
 function typeGlyph(type) {
   switch (type) {
-    case "track":     return ""
-    case "album":     return ""
-    case "artist":    return ""
-    case "playlist":  return ""
-    case "directory": return ""
-    default:          return ""
+    case "track":     return "\uf001"
+    case "album":     return "\uf51f"
+    case "artist":    return "\uf007"
+    case "playlist":  return "\uf03a"
+    case "directory": return "\uf07b"
+    default:          return "\uf001"
   }
 }

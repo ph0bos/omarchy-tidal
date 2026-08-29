@@ -1,4 +1,5 @@
 import QtQuick
+import Quickshell
 import qs.Ui
 import qs.Commons
 import "lib/TidalApi.js" as Tidal
@@ -6,12 +7,13 @@ import "components"
 
 // TIDAL now-playing for the Omarchy bar.
 //
-//   left = open the player · right = now playing · middle = play/pause
+//   left = mini player · right = now playing · middle = play/pause
 //   scroll = previous / next
 //
-// Clicking the widget opens the app. The stock media widget toggles playback on
-// a left click, but this is a full application and the obvious result of
-// clicking its icon is that the application opens.
+// A left click opens the mini player under the widget, the way every other
+// panel in this bar behaves. Skipping a track should not dim the desktop and
+// take over the screen, which is what the full overlay does -- and the mini
+// player has a way through to it for the things that need the room.
 //
 // State is read from the plugin's service, which is bound to Mopidy over MPRIS,
 // so this never polls and never speaks HTTP itself.
@@ -38,6 +40,54 @@ BarWidget {
   // is two logos for one thing. The mark stands in only when there is no art.
   readonly property bool showMark: !hasArt || root.vertical
   readonly property bool hasArt: artUrl !== ""
+
+  // Panel lifecycle, in the shape the bar looks for: it drives these when a
+  // hotkey or an IPC call targets a bar widget's panel.
+  property bool popupOpen: false
+  readonly property bool opened: popupOpen
+  function open() { root.popupOpen = true }
+  function close() { root.popupOpen = false }
+  function toggle() { root.popupOpen = !root.popupOpen }
+
+  // A bar surface exists per monitor, so a keybinding that says "mini player"
+  // has several of these to choose from. The one on the focused screen answers
+  // and the rest decline, which is the same rule the bar's own panels use.
+  readonly property string screenName: {
+    var window = root.QsWindow.window
+    return window && window.screen ? String(window.screen.name) : ""
+  }
+
+  function toggleIfFocused() {
+    // Hidden when nothing is playing, and a popup anchored to a zero-size item
+    // lands nowhere useful.
+    if (!root.visible) return false
+    if (root.bar && typeof root.bar.focusedScreenName === "function") {
+      var focused = String(root.bar.focusedScreenName() || "")
+      if (focused !== "" && focused !== root.screenName) return false
+    }
+    root.toggle()
+    return true
+  }
+
+  // The service holds the registry: it is the one object with an IPC handler,
+  // and the shell will not route a summon to a bar widget belonging to a
+  // plugin that also owns an overlay.
+  //
+  // Registration is not a one-shot at completion: `svc` is read through the
+  // bar and the shell, and on a cold start this widget exists before either
+  // does, so the first read is null.
+  property var registeredWith: null
+
+  function syncRegistration() {
+    if (root.registeredWith === root.svc) return
+    if (root.registeredWith) root.registeredWith.unregisterMiniPlayer(root)
+    root.registeredWith = root.svc
+    if (root.svc) root.svc.registerMiniPlayer(root)
+  }
+
+  onSvcChanged: root.syncRegistration()
+  Component.onCompleted: root.syncRegistration()
+  Component.onDestruction: if (root.registeredWith) root.registeredWith.unregisterMiniPlayer(root)
 
   readonly property string label: {
     if (!title) return ""
@@ -116,7 +166,7 @@ BarWidget {
     Text {
       anchors.verticalCenter: parent.verticalCenter
       visible: root.favorite && !root.vertical
-      text: ""
+      text: "\uf004"
       color: Color.accent
       font.family: root.bar ? root.bar.fontFamily : Style.font.family
       font.pixelSize: Style.font.caption
@@ -153,7 +203,7 @@ BarWidget {
 
     onClicked: function(mouse) {
       if (!root.svc) return
-      if (mouse.button === Qt.LeftButton) root.svc.openView("search")
+      if (mouse.button === Qt.LeftButton) root.toggle()
       else if (mouse.button === Qt.RightButton) root.svc.openView("nowPlaying")
       else if (mouse.button === Qt.MiddleButton) root.svc.playPause()
     }
@@ -162,6 +212,33 @@ BarWidget {
       if (!root.svc) return
       if (wheel.angleDelta.y > 0) root.svc.previous()
       else if (wheel.angleDelta.y < 0) root.svc.next()
+    }
+  }
+
+  PopupCard {
+    id: popup
+    anchorItem: root
+    bar: root.bar
+    owner: root
+    open: root.popupOpen
+    contentWidth: popup.fittedContentWidth(Style.space(340))
+    contentHeight: popup.fittedContentHeight(mini.implicitHeight)
+
+    MiniPlayer {
+      id: mini
+      anchors.fill: parent
+      svc: root.svc
+      foreground: Color.popups.text
+      fontFamily: root.bar ? root.bar.fontFamily : Style.font.menuFamily
+
+      // Handing off to the overlay closes the popup: leaving it open behind a
+      // full-screen surface would be two players on screen at once.
+      onOpenPlayer: { root.close(); if (root.svc) root.svc.openView("search") }
+      onOpenNowPlaying: { root.close(); if (root.svc) root.svc.openView("nowPlaying") }
+      onOpenUri: function(uri, title) {
+        root.close()
+        if (root.svc) root.svc.openDetail(uri, title)
+      }
     }
   }
 }

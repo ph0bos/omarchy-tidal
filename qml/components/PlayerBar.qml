@@ -41,25 +41,6 @@ Item {
   implicitHeight: Style.space(64)
   height: implicitHeight
 
-  // While the playhead is held, `position` follows the pointer locally and no
-  // seek is sent. One seek goes out on release. Sending a seek per mouse-move
-  // floods the backend and makes the audio stutter under the cursor.
-  property bool scrubbing: false
-
-  function fractionToMs(fraction) {
-    return Math.max(0, Math.min(1, fraction)) * root.length * 1000
-  }
-
-  function previewFraction(fraction) {
-    if (!root.svc || root.length <= 0) return
-    root.svc.previewSeek(root.fractionToMs(fraction))
-  }
-
-  function commitFraction(fraction) {
-    if (!root.svc || root.length <= 0) return
-    root.svc.commitSeek(root.fractionToMs(fraction))
-  }
-
   Rectangle {
     anchors.top: parent.top
     anchors.left: parent.left
@@ -256,8 +237,7 @@ Item {
   }
 
   // ---- seek bar: fills whatever is left between transport and the right group ----
-  Item {
-    id: seekArea
+  SeekBar {
     anchors.left: transport.right
     anchors.leftMargin: Style.space(16)
     anchors.right: rightGroup.left
@@ -265,94 +245,8 @@ Item {
     anchors.verticalCenter: parent.verticalCenter
     height: Style.space(26)
     visible: width > Style.space(90)
-
-    Text {
-      id: elapsed
-      anchors.left: parent.left
-      anchors.verticalCenter: parent.verticalCenter
-      width: Style.space(34)
-      text: Design.clock(root.position)
-      color: Color.muted
-      font.family: root.fontFamily
-      font.pixelSize: Style.font.caption
-      horizontalAlignment: Text.AlignRight
-    }
-
-    Text {
-      id: total
-      anchors.right: parent.right
-      anchors.verticalCenter: parent.verticalCenter
-      width: Style.space(34)
-      text: Design.clock(root.length)
-      color: Color.muted
-      font.family: root.fontFamily
-      font.pixelSize: Style.font.caption
-    }
-
-    Item {
-      id: track
-      anchors.left: elapsed.right
-      anchors.right: total.left
-      anchors.leftMargin: Style.space(9)
-      anchors.rightMargin: Style.space(9)
-      anchors.verticalCenter: parent.verticalCenter
-      height: parent.height
-
-      Rectangle {
-        id: rail
-        anchors.left: parent.left
-        anchors.right: parent.right
-        anchors.verticalCenter: parent.verticalCenter
-        height: Style.space(4)
-        radius: height / 2
-        color: Qt.rgba(Color.muted.r, Color.muted.g, Color.muted.b, 0.28)
-
-        Rectangle {
-          anchors.left: parent.left
-          anchors.top: parent.top
-          anchors.bottom: parent.bottom
-          width: parent.width * root.progress
-          radius: parent.radius
-          color: Color.accent
-        }
-      }
-
-      // Playhead. Grows on hover/drag so the bar reads as grabbable.
-      Rectangle {
-        id: knob
-        width: seekMouse.containsMouse || root.scrubbing ? Style.space(11) : Style.space(8)
-        height: width
-        radius: width / 2
-        color: Color.accent
-        anchors.verticalCenter: rail.verticalCenter
-        x: Math.max(0, Math.min(rail.width, rail.width * root.progress)) - width / 2
-        visible: root.length > 0
-
-        Behavior on width { NumberAnimation { duration: 100 } }
-      }
-
-      MouseArea {
-        id: seekMouse
-        anchors.fill: parent
-        hoverEnabled: true
-        cursorShape: Qt.PointingHandCursor
-        preventStealing: true
-
-        // Press and drag preview locally; the seek is issued once, on release.
-        onPressed: function(mouse) {
-          root.scrubbing = true
-          root.previewFraction(mouse.x / width)
-        }
-        onPositionChanged: function(mouse) {
-          if (root.scrubbing) root.previewFraction(mouse.x / width)
-        }
-        onReleased: function(mouse) {
-          if (!root.scrubbing) return
-          root.scrubbing = false
-          root.commitFraction(mouse.x / width)
-        }
-        onCanceled: root.scrubbing = false
-      }
-    }
+    svc: root.svc
+    foreground: root.foreground
+    fontFamily: root.fontFamily
   }
 }

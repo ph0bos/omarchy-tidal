@@ -25,19 +25,19 @@ Item {
   // Each row: glyph, label, action, an optional live state string, and whether
   // it applies to what is playing right now.
   readonly property var items: [
-    { glyph: "", label: "Open player",     action: "player",   state: "", enabled: true },
-    { glyph: "", label: "Now playing",     action: "lyrics",   state: "", enabled: true },
+    { glyph: "\uf001", label: "Open player",     action: "player",   state: "", enabled: true },
+    { glyph: "\uf036", label: "Now playing",     action: "lyrics",   state: "", enabled: true },
     { glyph: "",       label: "",                action: "sep",      state: "", enabled: true },
-    { glyph: root.favorited ? "" : "",
+    { glyph: root.favorited ? "\uf004" : "\uf08a",
       label: root.favorited ? "Remove favourite" : "Add to favourites",
       action: "favorite", state: "", enabled: root.isTidal },
-    { glyph: "", label: "Start radio",     action: "radio",    state: "", enabled: root.isTidal },
+    { glyph: "\uf012", label: "Start radio",     action: "radio",    state: "", enabled: root.isTidal },
     { glyph: "",       label: "",                action: "sep",      state: "", enabled: true },
-    { glyph: "", label: "Shuffle",         action: "shuffle",
+    { glyph: "\uf074", label: "Shuffle",         action: "shuffle",
       state: root.shuffled ? "on" : "off", enabled: true },
-    { glyph: "", label: "Repeat",          action: "repeat",
+    { glyph: "\uf01e", label: "Repeat",          action: "repeat",
       state: root.repeatMode, enabled: true },
-    { glyph: "", label: "Pause after track", action: "consume", state: "", enabled: true }
+    { glyph: "\uf28b", label: "Pause after track", action: "consume", state: "", enabled: true }
   ]
 
   implicitWidth: Style.space(214)
