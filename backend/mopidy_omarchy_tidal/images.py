@@ -75,7 +75,7 @@ def _image(obj, size: int) -> str | None:
         return None
 
 
-def _year(obj) -> int | None:
+def year_of(obj) -> int | None:
     date = getattr(obj, "release_date", None) or getattr(obj, "year", None)
     if date is None:
         return None
@@ -128,7 +128,7 @@ def describe(session, uri: str, size: int = 320) -> dict | None:
                 "type": "album",
                 "name": getattr(album, "name", "") or "",
                 "artist": _artist_name(album),
-                "year": _year(album),
+                "year": year_of(album),
                 "num_tracks": getattr(album, "num_tracks", None),
                 "image": _image(album, size),
                 "hires": "HIRES_LOSSLESS" in (getattr(album, "media_metadata_tags", None) or []),

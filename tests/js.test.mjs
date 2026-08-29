@@ -177,3 +177,53 @@ test("clock formats seconds as m:ss", () => {
   assert.equal(Design.clock(-1), "0:00");
   assert.equal(Design.clock(NaN), "0:00");
 });
+
+// ---- Library.js: rows built from the companion's own shape -------------------
+
+test("fromEntry keeps artwork, artist and the year an album row shows", () => {
+  const row = Library.fromEntry({
+    type: "album",
+    uri: "tidal:album:1",
+    name: "10,000 Days",
+    artist: "TOOL",
+    year: 2006,
+    image: "https://resources.tidal.com/x.jpg",
+    hires: true,
+  });
+  assert.equal(row.artist, "TOOL");
+  assert.equal(row.album, "2006");
+  assert.equal(row.image, "https://resources.tidal.com/x.jpg");
+  assert.equal(row.hires, true);
+  // Nothing left for the row to go and look up.
+  assert.equal(row.complete, true);
+});
+
+test("fromEntry gives a track its album rather than a year", () => {
+  const row = Library.fromEntry({
+    type: "track",
+    uri: "tidal:track:1",
+    name: "Woken Furies",
+    artist: "GUNSHIP",
+    album: "Dark All Day",
+    duration: 307,
+  });
+  assert.equal(row.album, "Dark All Day");
+  assert.equal(row.duration, 307);
+});
+
+test("fromEntry rejects an item with no uri", () => {
+  assert.equal(Library.fromEntry({ name: "nowhere" }), null);
+  assert.equal(Library.fromEntry(null), null);
+  // Length, not deepEqual: the VM context's Array is from another realm.
+  assert.equal(Library.fromEntries(null).length, 0);
+});
+
+test("librarySection maps only the four favourites lists", () => {
+  assert.equal(Library.librarySection("tidal:my_albums"), "albums");
+  assert.equal(Library.librarySection("tidal:my_artists"), "artists");
+  assert.equal(Library.librarySection("tidal:my_tracks"), "tracks");
+  assert.equal(Library.librarySection("tidal:my_playlists"), "playlists");
+  assert.equal(Library.librarySection("tidal:mixes"), "");
+  assert.equal(Library.librarySection("tidal:home"), "");
+  assert.equal(Library.librarySection(""), "");
+});

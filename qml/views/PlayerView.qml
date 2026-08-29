@@ -5,6 +5,7 @@ import "../components"
 import "../lib/MopidyRpc.js" as Rpc
 import "../lib/Library.js" as Library
 import "../lib/Design.js" as Design
+import "../lib/TidalApi.js" as Tidal
 
 // The full player: sidebar, browsable content, search, and transport.
 //
@@ -55,6 +56,18 @@ Item {
   // companion cannot answer, in which case we fall back to browsing
   // tidal:home and the folder list it returns.
   property bool homeFallback: false
+
+  // Your own albums, artists, tracks and playlists come from the companion as
+  // whole objects rather than as browse refs, so a row arrives knowing who made
+  // it. Paged, because a library of a thousand albums is twenty round trips to
+  // Tidal and the first screen should not wait for the twentieth.
+  property string librarySection: ""
+  property int libraryOffset: 0
+  property bool libraryMore: false
+  property bool libraryLoading: false
+  property bool libraryFallback: false
+
+  readonly property int libraryPageSize: 100
   readonly property bool homeActive: root.currentUri === "tidal:home"
     && root.detailUri === "" && !root.homeFallback
 
@@ -88,6 +101,23 @@ Item {
     if (uri !== "tidal:home") homePage.clearSelection()
     if (uri === "queue") { loadQueue(); return }
     if (uri === "") { focusSearch(); return }
+
+    // Favourites come from the companion, whole.
+    var section = Library.librarySection(uri)
+    if (section !== "" && !root.libraryFallback
+        && root.svc && root.svc.companionAvailable) {
+      root.currentUri = uri
+      root.currentTitle = title || uri
+      root.rows = []
+      root.selectedIndex = 0
+      root.errorText = ""
+      root.librarySection = section
+      root.libraryOffset = 0
+      root.libraryMore = false
+      root.loadLibraryPage(true)
+      return
+    }
+    root.librarySection = ""
 
     // The shelf page owns tidal:home. Browsing it as well would spend a round
     // trip on a folder list nobody is going to see.
@@ -126,6 +156,48 @@ Item {
       root.loading = false
       root.errorText = "Could not load: " + err
     })
+  }
+
+  function loadLibraryPage(first) {
+    if (root.libraryLoading || root.librarySection === "") return
+    if (!first && !root.libraryMore) return
+
+    root.libraryLoading = true
+    if (first) root.loading = true
+
+    var forUri = root.currentUri
+    var section = root.librarySection
+    var offset = first ? 0 : root.libraryOffset
+
+    Tidal.library(section, root.libraryPageSize, offset, function(payload) {
+      if (!root.alive || root.currentUri !== forUri) return
+      root.libraryLoading = false
+      root.loading = false
+
+      var items = (payload && payload.items) || []
+      var rows = Library.fromEntries(items)
+      root.rows = first ? rows : root.rows.concat(rows)
+      root.libraryOffset = offset + items.length
+      root.libraryMore = !!(payload && payload.more) && items.length > 0
+      if (root.rows.length === 0) root.errorText = "Nothing here."
+    }, function(err) {
+      if (!root.alive || root.currentUri !== forUri) return
+      root.libraryLoading = false
+      root.loading = false
+      if (!first) return
+      // One fall back to browsing, for the rest of the session: a companion
+      // that cannot answer for albums will not answer for artists either.
+      root.libraryFallback = true
+      root.librarySection = ""
+      root.openTarget(forUri, root.currentTitle)
+    })
+  }
+
+  // Fetch the next page before the list runs out, so scrolling does not stop
+  // at a boundary the reader can feel.
+  function maybeLoadMore(index) {
+    if (root.librarySection === "" || !root.libraryMore) return
+    if (index >= root.rows.length - 20) root.loadLibraryPage(false)
   }
 
   // Mopidy caps how much it will look up in one call comfortably; a page of
@@ -292,6 +364,7 @@ Item {
       if (i === 0 && delta < 0 && root.rows[i].header) { i = root.selectedIndex; break }
     } while (root.rows[i] && root.rows[i].header && i > 0 && i < root.rows.length - 1)
     root.selectedIndex = i
+    root.maybeLoadMore(i)
     listView.positionViewAtIndex(i, ListView.Contain)
   }
 
@@ -579,6 +652,13 @@ Item {
         model: root.rows
         currentIndex: root.selectedIndex
         boundsBehavior: Flickable.StopAtBounds
+
+        // A page and a half of runway, so the next page is already in hand by
+        // the time the current one runs out.
+        onContentYChanged: {
+          if (contentHeight <= 0) return
+          if (contentY > contentHeight - height * 1.5) root.loadLibraryPage(false)
+        }
 
         Behavior on opacity { NumberAnimation { duration: Design.base; easing.type: Easing.OutCubic } }
 

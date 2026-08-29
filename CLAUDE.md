@@ -145,7 +145,8 @@ bar widget with a mini player, a personalised Home page of artwork shelves,
 search and browse over the whole TIDAL tree with artwork on every row, artist
 and album pages with bios and reviews, a now-playing view with artwork, synced
 lyrics and credits, a spectrum analyser, quick menu, in-shell sign-in,
-keybindings, CI green.
+keybindings, CI green. Your own albums, artists, tracks and playlists come from
+the companion whole and paged, rather than as browse refs plus a lookup per row.
 
 The visual design pass is done and drove the rest of it: one motion vocabulary,
 one artwork tile, one playhead, one grid. Screenshots in `docs/screenshots/` are
@@ -153,12 +154,7 @@ current.
 
 Next, in the order that makes sense:
 
-1. **Library sections from the companion.** `browse(tidal:my_albums)` returns
-   twelve hundred bare refs, and each row then asks `/entity` for its artist and
-   year. `session.user.favorites.albums()` returns all of it with metadata
-   attached, in a handful of paginated calls. Same for artists, tracks and
-   playlists.
-2. **Playlist editing.** Add to, reorder, remove; create.
+1. **Playlist editing.** Add to, reorder, remove; create.
 3. **Sleep timer**, and **TIDAL Connect device switching**.
 4. **A settings surface** for the plugin's own options, rather than the widget
    schema being the only place to change anything.

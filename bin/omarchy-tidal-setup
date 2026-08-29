@@ -258,7 +258,8 @@ backup_existing() {
   local path="$1" marker="$2"
   [[ -f "$path" ]] || return 0
   grep -q "$marker" "$path" 2>/dev/null && return 0
-  local backup="$path.bak.$(date +%s)"
+  local backup
+  backup="$path.bak.$(date +%s)"
   cp "$path" "$backup" && warn "backed up to $backup"
 }
 

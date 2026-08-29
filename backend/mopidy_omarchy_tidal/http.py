@@ -189,6 +189,7 @@ def _item_payload(item) -> dict | None:
                 "uri": f"tidal:album:{item.id}",
                 "name": item.name,
                 "artist": item.artist.name if item.artist else "",
+                "year": images_mod.year_of(item),
                 "image": image(),
                 "hires": "HIRES_LOSSLESS" in (getattr(item, "media_metadata_tags", None) or []),
             }
@@ -648,6 +649,74 @@ class ArtHandler(BaseHandler):
             _ART_EXECUTOR, images_mod.prune, root, images_mod.DEFAULT_MAX_BYTES)
 
 
+# What `browse()` calls a directory and what Tidal calls a favourites list.
+_LIBRARY_SECTIONS = {
+    "albums": "albums",
+    "artists": "artists",
+    "tracks": "tracks",
+    "playlists": "playlists",
+    # The uris the sidebar browses, so the UI can hand over whichever it has.
+    "tidal:my_albums": "albums",
+    "tidal:my_artists": "artists",
+    "tidal:my_tracks": "tracks",
+    "tidal:my_playlists": "playlists",
+}
+
+
+class LibraryHandler(BaseHandler):
+    """A page of someone's favourites, with the metadata attached.
+
+    `browse(tidal:my_albums)` returns twelve hundred bare refs -- a name and a
+    type each -- and the UI then has to ask what every one of them is. Tidal
+    hands back the same list as objects, so one request here replaces a request
+    per row, and the rows arrive complete.
+
+    Paged rather than exhaustive: a library of a thousand albums is twenty
+    round trips to Tidal, and nobody scrolls that far before the first screen
+    has to be on screen.
+    """
+
+    async def get(self) -> None:
+        section = _LIBRARY_SECTIONS.get(self.get_argument("section", ""))
+        if section is None:
+            self.set_status(400)
+            self.write_json({"error": "unknown section"})
+            return
+
+        try:
+            limit = max(1, min(200, int(self.get_argument("limit", "100"))))
+            offset = max(0, int(self.get_argument("offset", "0")))
+        except ValueError:
+            limit, offset = 100, 0
+
+        session = self.session_or_503()
+        if session is None:
+            return
+
+        def work():
+            favorites = session.user.favorites
+            return list(getattr(favorites, section)(limit=limit, offset=offset) or [])
+
+        try:
+            found = await self.run(work)
+        except Exception as exc:
+            logger.warning("omarchy-tidal: %s favourites failed: %s", section, exc)
+            self.set_status(502)
+            self.write_json({"error": str(exc)})
+            return
+
+        items = [payload for payload in (_item_payload(item) for item in found) if payload]
+        self.write_json({
+            "section": section,
+            "offset": offset,
+            "limit": limit,
+            "items": items,
+            # Tidal does not report a total, so "there may be more" is the
+            # honest answer: a short page is the end of the list.
+            "more": len(found) >= limit,
+        })
+
+
 class EntityHandler(BaseHandler):
     """What a URI is: name, artist, year, art.
 
@@ -698,4 +767,5 @@ def factory(config, core):
         (r"/format", FormatHandler, kwargs),
         (r"/art", ArtHandler, kwargs),
         (r"/entity", EntityHandler, kwargs),
+        (r"/library", LibraryHandler, kwargs),
     ]

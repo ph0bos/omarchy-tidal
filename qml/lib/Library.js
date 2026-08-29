@@ -181,6 +181,52 @@ function withoutHeaders(rows) {
   return out
 }
 
+// A row built from the companion's own item shape (/home, /library, /album).
+// These arrive complete -- artwork, artist, year -- so nothing downstream needs
+// to go and ask what they are.
+function fromEntry(item) {
+  if (!item || !item.uri) return null
+  var type = String(item.type || "directory")
+  var artist = String(item.artist || "")
+  // A record's year goes where a track's album goes: it is the other thing you
+  // need to tell two pressings apart, and the row has one slot for it.
+  var second = type === "album" && item.year ? String(item.year)
+                                             : String(item.album || "")
+  var row = _row(item.uri, item.name, artist, type, artist, second)
+  row.image = String(item.image || "")
+  row.duration = Number(item.duration) || 0
+  row.hires = item.hires === true
+  // Nothing left to look up.
+  row.complete = true
+  row.header = false
+  return row
+}
+
+function fromEntries(items) {
+  var out = []
+  for (var i = 0; i < (items || []).length; i++) {
+    var row = fromEntry(items[i])
+    if (row) out.push(row)
+  }
+  return out
+}
+
+// Which of someone's favourites a sidebar target is, if it is one at all.
+//
+// These four are the same lists Tidal returns as objects, with artwork and
+// metadata attached. Browsing them through Mopidy gets bare refs and then a
+// lookup per row, so the companion answers for them instead -- and the rest of
+// the tree (mixes, For You, Hi-Res) still goes through browse().
+function librarySection(uri) {
+  switch (String(uri || "")) {
+    case "tidal:my_albums":    return "albums"
+    case "tidal:my_artists":   return "artists"
+    case "tidal:my_tracks":    return "tracks"
+    case "tidal:my_playlists": return "playlists"
+    default:                   return ""
+  }
+}
+
 // The sidebar. Mopidy exposes the whole Tidal tree through browse(), so these
 // are just browse targets -- no special-casing anywhere in the UI. Search is
 // not among them: it has its own field in the page header, and a nav row that

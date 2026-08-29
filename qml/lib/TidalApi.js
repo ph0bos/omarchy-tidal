@@ -112,6 +112,13 @@ function album(uri, onOk, onErr) {
 // -> { codec, bit_depth, sample_rate, quality, is_hires }
 function streamFormat(onOk, onErr) { _request("GET", "/format", null, onOk, onErr) }
 
+// A page of someone's favourites, with the metadata already attached.
+// -> { section, offset, limit, items: [...], more }
+function library(section, limit, offset, onOk, onErr) {
+  _request("GET", "/library" + _q({ section: section, limit: limit, offset: offset }),
+           null, onOk, onErr)
+}
+
 // What a uri actually is -- name, artist, year, art -- for rows that arrived
 // from browse() carrying nothing but a name.
 // -> { uri, type, name, artist, year, image, hires }
