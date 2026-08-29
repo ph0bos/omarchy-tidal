@@ -1,0 +1,11 @@
+{
+  "_comment": [
+    "The marketplace's submission rules, pinned. CI downloads its scripts/ at",
+    "this commit and runs them against this repository -- see",
+    "scripts/marketplace-baseline.mjs. Bumping the pin is deliberate: read the",
+    "diff first, because the rules decide whether a release can be listed.",
+    "Source: https://github.com/HANCORE-linux/omarchy-plugin-marketplace (MIT)"
+  ],
+  "repository": "HANCORE-linux/omarchy-plugin-marketplace",
+  "commit": "c07ec9ef2b03ef4d8ef9782f7222ce882242b781"
+}

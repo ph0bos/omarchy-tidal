@@ -79,6 +79,37 @@ jobs:
           done < <(find qml -name '*.qml')
           exit $fail
 
+  marketplace:
+    name: Marketplace submission checks
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+      # The marketplace validates a submission at an exact commit and answers on
+      # the submission issue -- a slow loop, and every push to fix something
+      # moves the sha a maintainer would have to re-approve. Its rules are
+      # public MIT code, so run the real thing here instead of guessing.
+      #
+      # Pinned, not vendored: what runs is the marketplace's code, and moving
+      # the pin is a reviewable change rather than a silent drift.
+      - name: Run the marketplace's own rules against this tree
+        run: |
+          set -euo pipefail
+          repo=$(python3 -c "import json;print(json.load(open('scripts/marketplace-baseline.json'))['repository'])")
+          commit=$(python3 -c "import json;print(json.load(open('scripts/marketplace-baseline.json'))['commit'])")
+          echo "rules: $repo@$commit"
+          mkdir -p /tmp/marketplace
+          if ! curl -sSfL --max-time 60 \
+               "https://codeload.github.com/$repo/tar.gz/$commit" -o /tmp/marketplace/rules.tar.gz; then
+            echo "::warning::could not fetch the marketplace rules; skipping this check"
+            exit 0
+          fi
+          tar -xzf /tmp/marketplace/rules.tar.gz -C /tmp/marketplace \
+            --strip-components=1 --wildcards '*/scripts/*.mjs'
+          node scripts/marketplace-baseline.mjs /tmp/marketplace/scripts .
+
   shell:
     name: Shell scripts
     runs-on: ubuntu-latest

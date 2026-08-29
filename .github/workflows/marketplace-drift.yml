@@ -1,0 +1,58 @@
+name: Marketplace rule drift
+
+# The submission rules belong to someone else and change without notice. CI runs
+# them at a pinned commit, which is the right default -- a build should not start
+# failing because a third party edited a regex overnight. This is the other half:
+# once a week, check whether the pin has fallen behind, and whether the newer
+# rules would say anything different about this repository.
+#
+# It reports; it does not move the pin. Bumping that is a reviewable change,
+# because the rules decide whether a release can be listed.
+
+on:
+  schedule:
+    - cron: "23 6 * * 1"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  drift:
+    name: Compare pinned rules against upstream
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+
+      - name: Check the pin, and what the newest rules make of us
+        run: |
+          set -euo pipefail
+          repo=$(python3 -c "import json;print(json.load(open('scripts/marketplace-baseline.json'))['repository'])")
+          pinned=$(python3 -c "import json;print(json.load(open('scripts/marketplace-baseline.json'))['commit'])")
+          head=$(curl -sSfL --max-time 60 \
+                   -H 'Accept: application/vnd.github+json' \
+                   "https://api.github.com/repos/$repo/commits/main" \
+                 | python3 -c "import json,sys;print(json.load(sys.stdin)['sha'])")
+
+          echo "pinned: $pinned"
+          echo "upstream main: $head"
+          if [ "$pinned" = "$head" ]; then
+            echo "The pin is current."
+            exit 0
+          fi
+
+          echo "::notice::marketplace rules have moved on; pinned $pinned, upstream $head"
+          mkdir -p /tmp/marketplace
+          curl -sSfL --max-time 60 "https://codeload.github.com/$repo/tar.gz/$head" \
+            -o /tmp/marketplace/rules.tar.gz
+          tar -xzf /tmp/marketplace/rules.tar.gz -C /tmp/marketplace \
+            --strip-components=1 --wildcards '*/scripts/*.mjs'
+
+          # Fails only if the newer rules find something in this repository. A
+          # pin that is merely old is a notice, not a broken build.
+          node scripts/marketplace-baseline.mjs /tmp/marketplace/scripts .
+          echo "The newer rules are happy with this tree; the pin can be bumped when convenient."

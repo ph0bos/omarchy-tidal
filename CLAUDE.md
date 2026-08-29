@@ -140,6 +140,14 @@ omarchy-tidal-setup check           # dependencies, config, service, session
 omarchy-shell tidal status          # live state as JSON
 ```
 
+The marketplace's submission rules run in CI at a pinned commit
+(`scripts/marketplace-baseline.json`), because finding out at submission time is
+a slow loop and every fix moves the sha a maintainer would have to re-approve.
+Findings fail the build; capabilities do not -- installing packages and managing
+a user service is what the setup script is for, and the marketplace asks a human
+to accept that. A weekly job says when the pin has fallen behind and whether the
+newer rules would change the answer. Moving the pin is deliberate.
+
 QML lint (expect `QObject` / `Unqualified access` warnings — Omarchy's own
 widgets produce hundreds):
 

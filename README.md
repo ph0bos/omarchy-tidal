@@ -277,11 +277,26 @@ loaded first. `rescanPlugins` does not help either. Use `omarchy restart shell`.
 python3 -m pytest tests -q            # companion extension
 node --test tests/js.test.mjs         # the QML JavaScript libraries
 python3 scripts/validate-manifest.py .
+python3 scripts/check-textformat.py . # no Text may default to AutoText
 omarchy plugin validate .
 
 mkdir -p /tmp/qsimports && ln -sfn /usr/share/omarchy/shell /tmp/qsimports/qs
 /usr/lib/qt6/bin/qmllint -I /usr/lib/qt6/qml -I /tmp/qsimports qml/**/*.qml
 ```
+
+The marketplace's own submission rules run in CI too, at a pinned commit, so a
+listing problem shows up on a branch rather than in a review comment days later:
+
+```bash
+curl -sSfL https://codeload.github.com/HANCORE-linux/omarchy-plugin-marketplace/tar.gz/$(
+  python3 -c "import json;print(json.load(open('scripts/marketplace-baseline.json'))['commit'])"
+) | tar -xz -C /tmp --strip-components=1 --wildcards '*/scripts/*.mjs'
+node scripts/marketplace-baseline.mjs /tmp/scripts .
+```
+
+It reports findings (which block a listing), capabilities (which a maintainer
+accepts — this plugin installs packages and manages a user service on purpose),
+and the listing prerequisites: README, licence, and a root `preview.png`.
 
 `Member ... not found on type "QObject"` warnings are expected — the injected
 `bar` and the `Style`/`Color` singletons are untyped. Omarchy's own widgets
