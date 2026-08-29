@@ -17,7 +17,7 @@ def test_strips_wimplink_and_keeps_label():
 def test_extracts_albums_and_playlists():
     _, links = clean('[wimpLink albumId="7"]Post[/wimpLink] and '
                      '[wimpLink playlistId="a-b"]Mix[/wimpLink]')
-    assert [l["uri"] for l in links] == ["tidal:album:7", "tidal:playlist:a-b"]
+    assert [x["uri"] for x in links] == ["tidal:album:7", "tidal:playlist:a-b"]
 
 
 def test_deduplicates_repeated_references():
