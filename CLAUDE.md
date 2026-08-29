@@ -60,6 +60,16 @@ computed from `foo` still describes the previous value. This produced a
 that one. Player, now playing and setup are therefore views inside a single
 `Overlay.qml`, switched by the summon payload.
 
+**Every `Text` must set `textFormat: Text.PlainText`.** QML's default is
+`Text.AutoText`, which sniffs the string and promotes anything that looks like
+markup to rich text -- and most of what this shows is catalogue data from TIDAL
+that the user did not author. Rich text can reference remote resources, so a
+track named with an `<img>` tag would make the shell fetch it.
+`scripts/check-textformat.py` enforces this and runs in CI. The same reasoning
+covers anything leaving for another surface: `Service.osd()` strips angle
+brackets, and "Open in TIDAL" checks the scheme and host before handing a url to
+the desktop opener.
+
 **Do not name a property `data` or `enabled`** — they shadow `QQuickItem`
 members. `data` is the default property; shadowing it breaks child assignment.
 

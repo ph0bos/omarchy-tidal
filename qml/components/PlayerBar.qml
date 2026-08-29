@@ -82,6 +82,7 @@ Item {
       }
 
       Text {
+        textFormat: Text.PlainText
         anchors.centerIn: parent
         text: root.expanded ? "\uf066" : "\uf065"
         color: "#FFFFFF"
@@ -106,6 +107,7 @@ Item {
       spacing: 2
 
       Text {
+        textFormat: Text.PlainText
         id: barTitle
         width: parent.width
         text: root.hasTrack ? root.svc.title : "Nothing playing"
@@ -127,6 +129,7 @@ Item {
       }
 
       Text {
+        textFormat: Text.PlainText
         id: barArtist
         width: parent.width
         visible: root.hasTrack
@@ -159,6 +162,7 @@ Item {
     spacing: Style.space(10)
 
     Text {
+      textFormat: Text.PlainText
       anchors.verticalCenter: parent.verticalCenter
       visible: root.svc && root.svc.isTidalTrack
       text: root.svc && root.svc.favorite ? "\uf004" : "\uf08a"
@@ -185,6 +189,7 @@ Item {
         : Qt.rgba(Color.muted.r, Color.muted.g, Color.muted.b, 0.14)
 
       Text {
+        textFormat: Text.PlainText
         id: badge
         anchors.centerIn: parent
         text: root.svc ? root.svc.qualityLabel : ""
@@ -211,6 +216,7 @@ Item {
       ]
 
       Text {
+        textFormat: Text.PlainText
         id: btn
         required property var modelData
         anchors.verticalCenter: parent.verticalCenter

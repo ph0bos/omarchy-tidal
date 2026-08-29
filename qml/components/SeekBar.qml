@@ -45,6 +45,7 @@ Item {
   }
 
   Text {
+    textFormat: Text.PlainText
     id: elapsed
     anchors.left: parent.left
     anchors.verticalCenter: parent.verticalCenter
@@ -58,6 +59,7 @@ Item {
   }
 
   Text {
+    textFormat: Text.PlainText
     id: total
     anchors.right: parent.right
     anchors.verticalCenter: parent.verticalCenter

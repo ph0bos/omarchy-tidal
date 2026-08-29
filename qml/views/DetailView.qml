@@ -141,7 +141,14 @@ Item {
 
   function openInBrowser() {
     if (!root.page || !root.page.share_url) return
-    Qt.openUrlExternally(String(root.page.share_url))
+    // Handing a url straight to the desktop opener means handing it whatever
+    // scheme the API returned. Only Tidal's own web address is worth opening.
+    var url = String(root.page.share_url)
+    if (url.indexOf("https://tidal.com/") !== 0 && url.indexOf("https://www.tidal.com/") !== 0) {
+      if (root.svc) root.svc.osd("That link does not point at TIDAL", "media")
+      return
+    }
+    Qt.openUrlExternally(url)
   }
 
   // Album: "1997 · 10 tracks · 43 min". Artist: the roles TIDAL lists.
@@ -207,6 +214,7 @@ Item {
   }
 
   Text {
+    textFormat: Text.PlainText
     anchors.centerIn: parent
     visible: root.errorText !== "" && !root.loading
     width: parent.width - Style.space(80)
@@ -256,6 +264,7 @@ Item {
           spacing: Style.space(8)
 
           Text {
+            textFormat: Text.PlainText
             width: parent.width
             text: root.page ? root.page.name : ""
             wrapMode: Text.WordWrap
@@ -268,6 +277,7 @@ Item {
           }
 
           Text {
+            textFormat: Text.PlainText
             width: parent.width
             visible: root.metaLine !== ""
             text: root.metaLine
@@ -286,6 +296,7 @@ Item {
             color: Qt.rgba(Color.accent.r, Color.accent.g, Color.accent.b, 0.18)
 
             Text {
+              textFormat: Text.PlainText
               id: hiresText
               anchors.centerIn: parent
               text: "HI-RES LOSSLESS"
@@ -333,6 +344,7 @@ Item {
         visible: root.body !== ""
 
         Text {
+          textFormat: Text.PlainText
           text: root.bodyLabel
           color: Color.muted
           font.family: root.fontFamily
@@ -341,6 +353,7 @@ Item {
         }
 
         Text {
+          textFormat: Text.PlainText
           // Capped: a bio set across the full width of the panel runs past 130
           // characters a line, which is about twice a comfortable measure.
           width: Math.min(parent.width, Style.space(600))
@@ -357,6 +370,7 @@ Item {
         }
 
         Text {
+          textFormat: Text.PlainText
           visible: root.body.length > 400
           text: root.bioExpanded ? "Show less" : "Read more"
           color: Color.accent
@@ -378,6 +392,7 @@ Item {
         visible: root.mentions.length > 0
 
         Text {
+          textFormat: Text.PlainText
           text: "MENTIONED"
           color: Color.muted
           font.family: root.fontFamily
@@ -403,6 +418,7 @@ Item {
                 : Qt.rgba(Color.muted.r, Color.muted.g, Color.muted.b, 0.10)
 
               Text {
+                textFormat: Text.PlainText
                 id: chipText
                 anchors.centerIn: parent
                 text: chip.modelData.label
@@ -429,6 +445,7 @@ Item {
         visible: trackRepeater.count > 0
 
         Text {
+          textFormat: Text.PlainText
           text: root.isArtist ? "TOP TRACKS" : "TRACKS"
           color: Color.muted
           font.family: root.fontFamily
@@ -496,6 +513,7 @@ Item {
           visible: gridSection.modelData.items.length > 0
 
           Text {
+            textFormat: Text.PlainText
             text: gridSection.modelData.title
             color: Color.muted
             font.family: root.fontFamily

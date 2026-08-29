@@ -213,6 +213,7 @@ Item {
   }
 
   Text {
+    textFormat: Text.PlainText
     anchors.centerIn: parent
     visible: root.errorText !== ""
     width: parent.width - Style.space(60)

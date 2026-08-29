@@ -33,6 +33,7 @@ Item {
   }
 
   Text {
+    textFormat: Text.PlainText
     anchors.centerIn: parent
     text: root.glyph
     color: root.active ? Color.accent
@@ -65,6 +66,7 @@ Item {
     z: 200
 
     Text {
+      textFormat: Text.PlainText
       id: tip
       anchors.centerIn: parent
       text: root.tooltip

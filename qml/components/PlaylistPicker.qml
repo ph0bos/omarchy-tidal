@@ -170,6 +170,7 @@ Item {
         spacing: Style.space(2)
 
         Text {
+          textFormat: Text.PlainText
           text: "Add to playlist"
           color: root.foreground
           font.family: root.fontFamily
@@ -178,6 +179,7 @@ Item {
         }
 
         Text {
+          textFormat: Text.PlainText
           width: parent.width
           visible: root.trackTitle !== ""
           text: root.trackTitle
@@ -203,6 +205,7 @@ Item {
           spacing: Style.space(9)
 
           Text {
+            textFormat: Text.PlainText
             anchors.verticalCenter: parent.verticalCenter
             text: "\uf067"
             color: Color.accent
@@ -211,6 +214,7 @@ Item {
           }
 
           Text {
+            textFormat: Text.PlainText
             anchors.verticalCenter: parent.verticalCenter
             text: "New playlist"
             color: root.foreground
@@ -259,6 +263,7 @@ Item {
 
       // ---- the playlists ----
       Text {
+        textFormat: Text.PlainText
         width: parent.width
         visible: root.loading && root.playlists.length === 0
         text: "Reading your playlists…"
@@ -268,6 +273,7 @@ Item {
       }
 
       Text {
+        textFormat: Text.PlainText
         width: parent.width
         visible: !root.loading && root.playlists.length === 0 && root.errorText === ""
         wrapMode: Text.WordWrap
@@ -304,6 +310,7 @@ Item {
               spacing: Style.space(9)
 
               Text {
+                textFormat: Text.PlainText
                 anchors.verticalCenter: parent.verticalCenter
                 text: "\uf03a"
                 color: Color.muted
@@ -312,6 +319,7 @@ Item {
               }
 
               Text {
+                textFormat: Text.PlainText
                 anchors.verticalCenter: parent.verticalCenter
                 width: parent.width - Style.space(80)
                 text: playlistRow.modelData.name || ""
@@ -322,6 +330,7 @@ Item {
               }
 
               Text {
+                textFormat: Text.PlainText
                 anchors.verticalCenter: parent.verticalCenter
                 visible: playlistRow.modelData.num_tracks !== null
                          && playlistRow.modelData.num_tracks !== undefined
@@ -345,6 +354,7 @@ Item {
       }
 
       Text {
+        textFormat: Text.PlainText
         width: parent.width
         visible: root.errorText !== "" || root.working
         wrapMode: Text.WordWrap

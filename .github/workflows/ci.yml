@@ -96,7 +96,7 @@ jobs:
           shellcheck --severity=warning bin/omarchy-tidal-setup bin/omarchy-tidal-cava
 
   glyphs:
-    name: Glyph escapes
+    name: QML text conventions
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
@@ -115,3 +115,9 @@ jobs:
             exit 1
           fi
           echo "ok: no stripped glyphs"
+
+      # QML's Text defaults to AutoText, which promotes anything that looks like
+      # markup to rich text -- and most of what this plugin shows is catalogue
+      # data from TIDAL that the user did not author.
+      - name: Every Text sets textFormat
+        run: python3 scripts/check-textformat.py .

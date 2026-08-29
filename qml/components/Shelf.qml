@@ -36,6 +36,7 @@ Item {
   height: visible ? heading.height + Style.space(12) + cards.height : 0
 
   Text {
+    textFormat: Text.PlainText
     id: heading
     anchors.left: parent.left
     anchors.top: parent.top

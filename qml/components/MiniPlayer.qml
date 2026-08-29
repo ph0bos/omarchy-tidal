@@ -56,6 +56,7 @@ Item {
         }
 
         Text {
+          textFormat: Text.PlainText
           anchors.centerIn: parent
           text: "\uf065"
           color: "#FFFFFF"
@@ -80,6 +81,7 @@ Item {
         spacing: Style.space(3)
 
         Text {
+          textFormat: Text.PlainText
           width: parent.width
           text: root.hasTrack ? root.svc.title : "Nothing playing"
           elide: Text.ElideRight
@@ -103,6 +105,7 @@ Item {
         }
 
         Text {
+          textFormat: Text.PlainText
           width: parent.width
           visible: root.hasTrack
           text: root.svc ? root.svc.artist : ""
@@ -124,6 +127,7 @@ Item {
         }
 
         Text {
+          textFormat: Text.PlainText
           width: parent.width
           visible: root.svc && root.svc.album !== ""
           text: root.svc ? root.svc.album : ""
@@ -161,6 +165,7 @@ Item {
           ]
 
           Text {
+            textFormat: Text.PlainText
             id: button
             required property var modelData
             anchors.verticalCenter: parent.verticalCenter
@@ -193,6 +198,7 @@ Item {
       // than on playback, and grouping them with the transport would suggest
       // otherwise.
       Text {
+        textFormat: Text.PlainText
         anchors.left: parent.left
         anchors.verticalCenter: parent.verticalCenter
         visible: root.svc && root.svc.isTidalTrack
@@ -213,6 +219,7 @@ Item {
       }
 
       Text {
+        textFormat: Text.PlainText
         anchors.right: parent.right
         anchors.verticalCenter: parent.verticalCenter
         visible: root.svc && root.svc.isTidalTrack
@@ -256,6 +263,7 @@ Item {
           : Qt.rgba(Color.muted.r, Color.muted.g, Color.muted.b, 0.14)
 
         Text {
+          textFormat: Text.PlainText
           id: quality
           anchors.centerIn: parent
           text: root.svc ? root.svc.qualityLabel : ""
@@ -271,6 +279,7 @@ Item {
         spacing: Style.space(14)
 
         Text {
+          textFormat: Text.PlainText
           text: "Player"
           color: playerHover.containsMouse ? Color.accent : Color.muted
           font.family: root.fontFamily
@@ -289,6 +298,7 @@ Item {
         }
 
         Text {
+          textFormat: Text.PlainText
           text: "Now playing"
           color: npHover.containsMouse ? Color.accent : Color.muted
           font.family: root.fontFamily

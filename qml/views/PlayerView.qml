@@ -452,6 +452,7 @@ Item {
             spacing: Style.space(9)
 
             Text {
+              textFormat: Text.PlainText
               anchors.verticalCenter: parent.verticalCenter
               text: Library.glyph(navRow.modelData.icon)
               color: root.detailUri === "" && root.currentUri === navRow.modelData.uri ? Color.accent : Color.muted
@@ -460,6 +461,7 @@ Item {
             }
 
             Text {
+              textFormat: Text.PlainText
               anchors.verticalCenter: parent.verticalCenter
               text: navRow.modelData.label
               color: root.detailUri === "" && root.currentUri === navRow.modelData.uri ? Color.accent : root.foreground
@@ -514,6 +516,7 @@ Item {
       height: Style.space(30)
 
       Text {
+        textFormat: Text.PlainText
         anchors.left: parent.left
         anchors.right: clearQueue.visible ? clearQueue.left : searchField.left
         anchors.rightMargin: Style.space(16)
@@ -534,6 +537,7 @@ Item {
       }
 
       Text {
+        textFormat: Text.PlainText
         id: clearQueue
         anchors.right: searchField.left
         anchors.rightMargin: Style.space(14)
@@ -575,6 +579,7 @@ Item {
       }
 
       Text {
+        textFormat: Text.PlainText
         // Inside the field rather than beside it, so the control reads as one
         // object instead of an icon that happens to sit next to a box.
         x: searchField.x + Style.space(9)
@@ -694,6 +699,7 @@ Item {
       }
 
       Text {
+        textFormat: Text.PlainText
         anchors.centerIn: parent
         visible: root.errorText !== "" && !root.loading
                  && root.detailUri === "" && !root.homeActive

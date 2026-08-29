@@ -118,6 +118,7 @@ Item {
       Behavior on color { ColorAnimation { duration: Design.fast } }
 
       Text {
+        textFormat: Text.PlainText
         anchors.centerIn: parent
         // Nudged right: a play triangle's optical centre is left of its box.
         anchors.horizontalCenterOffset: Style.space(1)
@@ -145,6 +146,7 @@ Item {
     spacing: Style.space(2)
 
     Text {
+      textFormat: Text.PlainText
       width: parent.width
       text: root.label
       elide: Text.ElideRight
@@ -174,6 +176,7 @@ Item {
       }
 
       Text {
+        textFormat: Text.PlainText
         id: sub
         width: parent.width - (root.hires ? Style.space(9) : 0)
         text: root.sublabel

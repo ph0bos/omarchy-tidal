@@ -219,6 +219,7 @@ Item {
       spacing: Style.space(3)
 
       Text {
+        textFormat: Text.PlainText
         text: root.ready ? "Ready" : "Set up TIDAL"
         color: root.foreground
         font.family: root.fontFamily
@@ -227,6 +228,7 @@ Item {
       }
 
       Text {
+        textFormat: Text.PlainText
         width: parent.width
         // Once everything is ready the block below says what to do next; two
         // copies of the same sentence reads as a mistake.
@@ -257,6 +259,7 @@ Item {
             spacing: Style.space(10)
 
             Text {
+              textFormat: Text.PlainText
               // A tick for done and an open ring for outstanding: two shapes,
               // not two shades of the same dot.
               text: checkItem.modelData.ok ? "\uf00c" : "\uf10c"
@@ -266,6 +269,7 @@ Item {
             }
 
             Text {
+              textFormat: Text.PlainText
               text: checkItem.modelData.label
               color: checkItem.modelData.ok ? root.foreground : Color.muted
               font.family: root.fontFamily
@@ -275,6 +279,7 @@ Item {
 
           // What to do about it, shown only while it is outstanding.
           Text {
+            textFormat: Text.PlainText
             x: Style.space(24)
             width: parent.width - Style.space(24)
             visible: !checkItem.modelData.ok
@@ -304,6 +309,7 @@ Item {
       visible: !root.busy && root.authState !== "ok" && !root.signedIn
 
       Text {
+        textFormat: Text.PlainText
         width: parent.width
         wrapMode: Text.WordWrap
         color: root.authState === "fail" ? Color.urgent : Color.muted
@@ -334,6 +340,7 @@ Item {
       visible: root.busy
 
       Text {
+        textFormat: Text.PlainText
         width: parent.width
         wrapMode: Text.WordWrap
         color: root.foreground
@@ -353,6 +360,7 @@ Item {
         visible: root.loginUrl !== ""
 
         Text {
+          textFormat: Text.PlainText
           id: urlText
           width: parent.width - copyButton.width - Style.space(8)
           anchors.verticalCenter: parent.verticalCenter
@@ -374,6 +382,7 @@ Item {
       }
 
       Text {
+        textFormat: Text.PlainText
         width: parent.width
         wrapMode: Text.WordWrap
         color: root.foreground
@@ -389,6 +398,7 @@ Item {
         visible: root.authState !== "finishing"
 
         Text {
+          textFormat: Text.PlainText
           id: pulse
           anchors.verticalCenter: parent.verticalCenter
           text: "\u25cf"
@@ -405,6 +415,7 @@ Item {
         }
 
         Text {
+          textFormat: Text.PlainText
           anchors.verticalCenter: parent.verticalCenter
           // wl-paste missing is not fatal -- the paste field still works -- but
           // waiting silently for a clipboard nobody can read is.
@@ -420,6 +431,7 @@ Item {
       // Restarting Mopidy takes a few seconds and the flow is not over until it
       // has, so it gets said rather than looking like a stall.
       Text {
+        textFormat: Text.PlainText
         width: parent.width
         visible: root.authState === "finishing"
         wrapMode: Text.WordWrap
@@ -462,6 +474,7 @@ Item {
         // Said before the paste is thrown away, rather than leaving an empty
         // field and no explanation.
         Text {
+          textFormat: Text.PlainText
           width: parent.width
           visible: root.pasteError !== ""
           wrapMode: Text.WordWrap
@@ -489,6 +502,7 @@ Item {
       visible: root.authState === "ok" || (root.signedIn && !root.busy)
 
       Text {
+        textFormat: Text.PlainText
         width: parent.width
         wrapMode: Text.WordWrap
         color: Color.accent
@@ -500,6 +514,7 @@ Item {
       }
 
       Text {
+        textFormat: Text.PlainText
         width: parent.width
         wrapMode: Text.WordWrap
         color: Color.muted

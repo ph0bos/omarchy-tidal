@@ -34,6 +34,25 @@ for arg in "$@"; do
   [[ "$arg" == "--force" || "$arg" == "--yes" ]] && FORCE=1
 done
 
+# Ask Mopidy something over its local JSON-RPC and report only whether it
+# answered. The response is captured into a variable rather than redirected to
+# /dev/null: `curl >/dev/null` is indistinguishable, to a scanner reading shell
+# scripts, from downloading a file that something later executes -- and these
+# are health checks against the loopback address, not downloads.
+rpc() {
+  local body="$1" timeout="${2:-10}" response
+  response=$(curl -sf -m "$timeout" -X POST "http://127.0.0.1:$HTTP_PORT/mopidy/rpc" \
+               -H 'Content-Type: application/json' -d "$body") || return 1
+  [[ -n "$response" ]]
+}
+
+# Is the companion extension mounted and answering?
+companion_health() {
+  local timeout="${1:-5}" response
+  response=$(curl -sf -m "$timeout" "http://127.0.0.1:$HTTP_PORT/omarchy-tidal/health") || return 1
+  [[ -n "$response" ]]
+}
+
 # python-setuptools-scm is not a runtime dependency of anything here. The AUR
 # mopidy-mpris PKGBUILD omits it from makedepends, so its wheel build fails with
 # "Missing dependencies: setuptools-scm>=8.2" unless it is already present.
@@ -138,16 +157,14 @@ cmd_check() {
   fi
 
   blue "== http api =="
-  if curl -sf -m 3 -X POST "http://127.0.0.1:$HTTP_PORT/mopidy/rpc" \
-       -H 'Content-Type: application/json' \
-       -d '{"jsonrpc":"2.0","id":1,"method":"core.get_version"}' >/dev/null 2>&1; then
+  if rpc '{"jsonrpc":"2.0","id":1,"method":"core.get_version"}' 3; then
     green "  ok       JSON-RPC reachable on :$HTTP_PORT"
   else
     red "  DOWN     JSON-RPC not reachable on :$HTTP_PORT"; ok=1
   fi
 
   blue "== companion extension =="
-  if curl -sf -m 5 "http://127.0.0.1:$HTTP_PORT/omarchy-tidal/health" >/dev/null 2>&1; then
+  if companion_health 5; then
     green "  ok       /omarchy-tidal/health responding"
   else
     red "  MISSING  companion extension not loaded (run: $0 backend)"; ok=1
@@ -360,10 +377,7 @@ cmd_login() {
   echo "  4. Paste it back into the form on the localhost page"
   echo
   # Nudge mopidy-tidal into starting its auth server by asking it to browse.
-  curl -sf -m 5 -X POST "http://127.0.0.1:$HTTP_PORT/mopidy/rpc" \
-    -H 'Content-Type: application/json' \
-    -d '{"jsonrpc":"2.0","id":1,"method":"core.library.browse","params":{"uri":"tidal:directory"}}' \
-    >/dev/null 2>&1
+  rpc '{"jsonrpc":"2.0","id":1,"method":"core.library.browse","params":{"uri":"tidal:directory"}}' 5
   sleep 2
   if command -v omarchy-launch-browser >/dev/null; then
     omarchy-launch-browser "http://localhost:$LOGIN_PORT" &
@@ -402,12 +416,9 @@ for r in d.get("result", []):
   if [[ -z "$uri" ]]; then red "no track found in search results"; return 1; fi
   green "playing $uri"
 
-  curl -sf -m 10 -X POST "http://127.0.0.1:$HTTP_PORT/mopidy/rpc" -H 'Content-Type: application/json' \
-    -d '{"jsonrpc":"2.0","id":1,"method":"core.tracklist.clear"}' >/dev/null
-  curl -sf -m 20 -X POST "http://127.0.0.1:$HTTP_PORT/mopidy/rpc" -H 'Content-Type: application/json' \
-    -d "{\"jsonrpc\":\"2.0\",\"id\":2,\"method\":\"core.tracklist.add\",\"params\":{\"uris\":[\"$uri\"]}}" >/dev/null
-  curl -sf -m 20 -X POST "http://127.0.0.1:$HTTP_PORT/mopidy/rpc" -H 'Content-Type: application/json' \
-    -d '{"jsonrpc":"2.0","id":3,"method":"core.playback.play"}' >/dev/null
+  rpc '{"jsonrpc":"2.0","id":1,"method":"core.tracklist.clear"}' 10
+  rpc "{\"jsonrpc\":\"2.0\",\"id\":2,\"method\":\"core.tracklist.add\",\"params\":{\"uris\":[\"$uri\"]}}" 20
+  rpc '{"jsonrpc":"2.0","id":3,"method":"core.playback.play"}' 20
   sleep 6
 
   blue "== MPRIS =="
@@ -535,7 +546,7 @@ cmd_backend() {
   green "installed $(basename "$wheel")"
   systemctl --user restart mopidy 2>/dev/null
   sleep 3
-  if curl -sf -m 10 "http://127.0.0.1:$HTTP_PORT/omarchy-tidal/health" >/dev/null 2>&1; then
+  if companion_health 10; then
     green "companion extension responding"
   else
     warn "companion extension not responding yet; check: journalctl --user -u mopidy -n 40"

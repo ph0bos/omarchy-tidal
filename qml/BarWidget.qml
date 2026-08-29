@@ -152,6 +152,7 @@ BarWidget {
       readonly property bool scrolling: overflowing && root.scrollLongLabels
 
       Text {
+        textFormat: Text.PlainText
         id: labelText
         text: root.label
         color: root.bar ? root.bar.barForeground : Color.bar.text
@@ -181,6 +182,7 @@ BarWidget {
     }
 
     Text {
+      textFormat: Text.PlainText
       anchors.verticalCenter: parent.verticalCenter
       visible: root.favorite && !root.vertical
       text: "\uf004"
@@ -202,6 +204,7 @@ BarWidget {
         : Qt.rgba(Color.muted.r, Color.muted.g, Color.muted.b, 0.14)
 
       Text {
+        textFormat: Text.PlainText
         id: qualityText
         anchors.centerIn: parent
         text: root.qualityLabel

@@ -88,6 +88,7 @@ Item {
               ? Color.menu.selectedBackground : "transparent"
 
             Text {
+              textFormat: Text.PlainText
               id: icon
               anchors.left: parent.left
               anchors.leftMargin: Style.space(9)
@@ -103,6 +104,7 @@ Item {
             }
 
             Text {
+              textFormat: Text.PlainText
               anchors.left: icon.right
               anchors.leftMargin: Style.space(8)
               anchors.verticalCenter: parent.verticalCenter
@@ -115,6 +117,7 @@ Item {
 
             // Live state on the right: "on", "all", "single".
             Text {
+              textFormat: Text.PlainText
               anchors.right: parent.right
               anchors.rightMargin: Style.space(10)
               anchors.verticalCenter: parent.verticalCenter

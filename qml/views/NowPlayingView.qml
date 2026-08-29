@@ -208,6 +208,7 @@ Item {
 
         // What clicking the sleeve does, said plainly, only while hovered.
         Text {
+          textFormat: Text.PlainText
           anchors.centerIn: parent
           text: root.face === "artwork"
             ? (root.hasLyrics ? "Lyrics" : "No lyrics")
@@ -237,6 +238,7 @@ Item {
         spacing: Style.space(4)
 
         Text {
+          textFormat: Text.PlainText
           width: parent.width
           text: root.svc && root.svc.title !== "" ? root.svc.title : "Nothing playing"
           wrapMode: Text.WordWrap
@@ -251,6 +253,7 @@ Item {
         }
 
         Text {
+          textFormat: Text.PlainText
           width: parent.width
           text: root.svc ? root.svc.artist : ""
           elide: Text.ElideRight
@@ -261,6 +264,7 @@ Item {
         }
 
         Text {
+          textFormat: Text.PlainText
           width: parent.width
           visible: root.svc && root.svc.album !== ""
           text: root.svc ? root.svc.album : ""
@@ -314,6 +318,7 @@ Item {
         Behavior on opacity { NumberAnimation { duration: Design.base } }
 
         Text {
+          textFormat: Text.PlainText
           id: lyricSource
           anchors.top: parent.top
           anchors.right: parent.right
@@ -329,6 +334,7 @@ Item {
         }
 
         Text {
+          textFormat: Text.PlainText
           anchors.centerIn: parent
           visible: !root.hasLyrics
           width: parent.width - Style.space(40)
@@ -364,6 +370,7 @@ Item {
           }
 
           delegate: Text {
+            textFormat: Text.PlainText
             id: lyricLine
             required property int index
             required property var modelData
@@ -407,6 +414,7 @@ Item {
           boundsBehavior: Flickable.StopAtBounds
 
           Text {
+            textFormat: Text.PlainText
             id: plainText
             width: parent.width
             text: root.plain
@@ -439,6 +447,7 @@ Item {
           spacing: Style.space(14)
 
           Text {
+            textFormat: Text.PlainText
             width: parent.width
             visible: root.album !== null
             text: root.album ? String(root.album.name || "") : ""
@@ -461,6 +470,7 @@ Item {
           }
 
           Text {
+            textFormat: Text.PlainText
             width: parent.width
             visible: root.album && root.album.artist
             text: root.album ? String(root.album.artist || "") : ""
@@ -481,6 +491,7 @@ Item {
           }
 
           Text {
+            textFormat: Text.PlainText
             width: parent.width
             visible: root.albumMeta !== ""
             text: root.albumMeta
@@ -504,6 +515,7 @@ Item {
                 : Qt.rgba(Color.muted.r, Color.muted.g, Color.muted.b, 0.14)
 
               Text {
+                textFormat: Text.PlainText
                 id: qualityText
                 anchors.centerIn: parent
                 text: root.svc ? root.svc.qualityLabel : ""
@@ -514,6 +526,7 @@ Item {
             }
 
             Text {
+              textFormat: Text.PlainText
               anchors.verticalCenter: parent.verticalCenter
               visible: root.svc && root.svc.isHiRes
               text: "HI-RES"
@@ -525,6 +538,7 @@ Item {
           }
 
           Text {
+            textFormat: Text.PlainText
             width: parent.width
             visible: root.album && root.album.review
             text: root.album ? String(root.album.review || "") : ""
@@ -537,6 +551,7 @@ Item {
           }
 
           Text {
+            textFormat: Text.PlainText
             width: parent.width
             visible: root.album && root.album.copyright
             text: root.album ? String(root.album.copyright || "") : ""
@@ -548,6 +563,7 @@ Item {
           }
 
           Text {
+            textFormat: Text.PlainText
             width: parent.width
             visible: root.album === null
             text: root.albumLoading ? "Loading…"
@@ -591,6 +607,7 @@ Item {
         ]
 
         Text {
+          textFormat: Text.PlainText
           id: tab
           required property int index
           required property var modelData

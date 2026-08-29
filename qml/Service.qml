@@ -462,11 +462,19 @@ Item {
     })) === true
   }
 
+  // Messages go to another plugin's surface, which renders them with its own
+  // rules. Ours carry catalogue strings -- a playlist name, an error from
+  // TIDAL -- so the angle brackets come out here, at the boundary, rather than
+  // trusting whatever is on the other side not to treat them as markup.
+  function plainMessage(message) {
+    return String(message || "").replace(/[<>]/g, "")
+  }
+
   function osd(message, icon) {
     if (!shell) return
     shell.summon("omarchy.osd", JSON.stringify({
       icon: icon || "media",
-      message: message
+      message: root.plainMessage(message)
     }))
   }
 

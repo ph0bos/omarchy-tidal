@@ -277,6 +277,7 @@ Item {
             }
 
             Text {
+              textFormat: Text.PlainText
               anchors.verticalCenter: parent.verticalCenter
               text: "TIDAL"
               color: root.foreground

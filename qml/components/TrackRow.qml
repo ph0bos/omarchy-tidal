@@ -116,6 +116,7 @@ Item {
                   : (hasMeta ? Style.space(44) : Style.space(40))
 
   Text {
+    textFormat: Text.PlainText
     visible: root.isHeader
     anchors.left: parent.left
     anchors.leftMargin: Style.space(4)
@@ -139,6 +140,7 @@ Item {
     // Position, when the row has one, sits outside the sleeve: on an album
     // page the numbers are a column you read down.
     Text {
+      textFormat: Text.PlainText
       id: trackNumber
       anchors.left: parent.left
       anchors.leftMargin: Style.space(6)
@@ -173,6 +175,7 @@ Item {
       // keeps its glyph, inside the same silhouette so the column still lines
       // up.
       Text {
+        textFormat: Text.PlainText
         anchors.centerIn: parent
         visible: !art.ready
         text: Library.typeGlyph(root.rowType)
@@ -190,6 +193,7 @@ Item {
         color: Qt.rgba(0, 0, 0, 0.55)
 
         Text {
+          textFormat: Text.PlainText
           anchors.centerIn: parent
           text: "\uf028"
           color: root.accent
@@ -200,6 +204,7 @@ Item {
     }
 
     Text {
+      textFormat: Text.PlainText
       id: durationLabel
       anchors.right: removeButton.visible ? removeButton.left
                      : (chevron.visible ? chevron.left : parent.right)
@@ -215,6 +220,7 @@ Item {
     // Only on hover: a row of permanent delete buttons down a queue is a row of
     // invitations to lose your place.
     Text {
+      textFormat: Text.PlainText
       id: removeButton
       anchors.right: parent.right
       anchors.rightMargin: Style.space(8)
@@ -240,6 +246,7 @@ Item {
     }
 
     Text {
+      textFormat: Text.PlainText
       id: chevron
       anchors.right: parent.right
       anchors.rightMargin: Style.space(8)
@@ -263,6 +270,7 @@ Item {
       spacing: 2
 
       Text {
+        textFormat: Text.PlainText
         width: parent.width
         text: root.row ? root.row.name : ""
         elide: Text.ElideRight
@@ -281,6 +289,7 @@ Item {
         visible: root.hasMeta
 
         Text {
+          textFormat: Text.PlainText
           id: artistLabel
           anchors.verticalCenter: parent.verticalCenter
           width: Math.min(implicitWidth, parent.width * 0.55)
@@ -293,6 +302,7 @@ Item {
         }
 
         Text {
+          textFormat: Text.PlainText
           id: sep
           anchors.verticalCenter: parent.verticalCenter
           visible: root.artistText !== "" && root.albumText !== ""
@@ -304,6 +314,7 @@ Item {
         }
 
         Text {
+          textFormat: Text.PlainText
           anchors.verticalCenter: parent.verticalCenter
           width: Math.max(0, parent.width - artistLabel.width
                              - (sep.visible ? sep.width + Style.space(10) : 0))
