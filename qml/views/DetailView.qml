@@ -38,6 +38,9 @@ Item {
   }
 
   signal openUri(string uri, string title)
+  // Emitted once the page resolves, so the breadcrumb can show the artist or
+  // album name instead of the uri it was opened with.
+  signal titleResolved(string title)
   signal back()
 
   onUriChanged: root.load()
@@ -64,6 +67,7 @@ Item {
       if (!root.alive || root.uri !== want) return
       root.page = payload
       root.loading = false
+      if (payload && payload.name) root.titleResolved(String(payload.name))
     }
     function fail(err) {
       if (!root.alive || root.uri !== want) return

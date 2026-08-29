@@ -25,6 +25,13 @@ Item {
   readonly property real length: svc ? svc.length : 0
   readonly property real progress: length > 0 ? Math.max(0, Math.min(1, position / length)) : 0
 
+  // Clicking the artwork expands to the full now-playing view and clicking it
+  // again contracts back, the way the native TIDAL desktop app behaves. The
+  // host owns the view state; the bar only reports the intent and is told
+  // which direction it is currently pointing.
+  property bool expanded: false
+  signal artClicked()
+
   implicitHeight: Style.space(64)
   height: implicitHeight
 
@@ -73,13 +80,45 @@ Item {
     spacing: Style.space(11)
     width: Style.space(250)
 
-    RoundedImage {
+    Item {
       anchors.verticalCenter: parent.verticalCenter
       width: root.hasTrack ? Style.space(42) : 0
       height: width
-      radius: Style.space(3)
       visible: width > 0
-      source: root.svc ? root.svc.artUrl : ""
+
+      RoundedImage {
+        id: barArt
+        anchors.fill: parent
+        radius: Style.space(3)
+        source: root.svc ? root.svc.artUrl : ""
+      }
+
+      // Expand affordance, revealed on hover so it does not clutter the bar.
+      Rectangle {
+        anchors.fill: parent
+        radius: Style.space(3)
+        color: "#000000"
+        opacity: artHover.containsMouse ? 0.45 : 0
+        Behavior on opacity { NumberAnimation { duration: 120 } }
+      }
+
+      Text {
+        anchors.centerIn: parent
+        text: root.expanded ? "\uf066" : "\uf065"
+        color: "#FFFFFF"
+        opacity: artHover.containsMouse ? 0.95 : 0
+        font.family: root.fontFamily
+        font.pixelSize: Style.font.bodySmall
+        Behavior on opacity { NumberAnimation { duration: 120 } }
+      }
+
+      MouseArea {
+        id: artHover
+        anchors.fill: parent
+        hoverEnabled: true
+        cursorShape: Qt.PointingHandCursor
+        onClicked: root.artClicked()
+      }
     }
 
     Column {
