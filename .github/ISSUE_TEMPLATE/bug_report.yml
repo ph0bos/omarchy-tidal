@@ -1,0 +1,36 @@
+name: Bug report
+description: Something is broken
+labels: [bug]
+body:
+  - type: textarea
+    id: what
+    attributes:
+      label: What happened
+      description: What you expected, and what happened instead.
+    validations:
+      required: true
+  - type: textarea
+    id: check
+    attributes:
+      label: Output of `omarchy-tidal-setup check`
+      render: shell
+    validations:
+      required: true
+  - type: textarea
+    id: status
+    attributes:
+      label: Output of `omarchy-shell tidal status`
+      render: json
+  - type: input
+    id: omarchy
+    attributes:
+      label: Omarchy version
+      description: "`omarchy version`"
+    validations:
+      required: true
+  - type: textarea
+    id: logs
+    attributes:
+      label: Relevant logs
+      description: "`journalctl --user -u mopidy -n 50` and any shell warnings."
+      render: shell

@@ -1,0 +1,58 @@
+name: Release
+
+on:
+  push:
+    tags: ["v*"]
+
+permissions:
+  contents: write
+
+jobs:
+  release:
+    name: Tag release
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      # A tag whose version disagrees with the manifest produces a listing that
+      # reports the wrong version in the marketplace.
+      - name: Tag must match manifest version
+        run: |
+          set -euo pipefail
+          tag="${GITHUB_REF_NAME#v}"
+          manifest=$(python3 -c "import json;print(json.load(open('manifest.json'))['version'])")
+          echo "tag=$tag manifest=$manifest"
+          [ "$tag" = "$manifest" ] || { echo "::error::tag v$tag != manifest $manifest"; exit 1; }
+
+      - name: Validate manifest
+        run: python3 scripts/validate-manifest.py .
+
+      - name: Build release notes
+        run: |
+          set -euo pipefail
+          prev=$(git describe --tags --abbrev=0 "${GITHUB_REF_NAME}^" 2>/dev/null || true)
+          {
+            if [ -n "$prev" ]; then
+              echo "## Changes since $prev"; echo
+              git log --no-merges --pretty='- %s' "$prev..${GITHUB_REF_NAME}"
+            else
+              echo "First release."
+            fi
+            echo
+            echo "## Install"; echo
+            echo '```bash'
+            echo "omarchy plugin add https://github.com/${GITHUB_REPOSITORY}.git"
+            echo "omarchy plugin enable $(python3 -c "import json;print(json.load(open('manifest.json'))['id'])")"
+            echo '```'
+          } > NOTES.md
+          cat NOTES.md
+
+      - uses: softprops/action-gh-release@v2
+        with:
+          body_path: NOTES.md
+          generate_release_notes: false

@@ -1,0 +1,19 @@
+[tool.ruff]
+line-length = 100
+target-version = "py312"
+extend-exclude = ["backend/build", "backend/dist"]
+
+[tool.ruff.lint]
+# Deliberately conservative: errors, undefined names, imports and obvious bugs.
+# Style opinions are left out so CI blocks on defects, not on taste.
+select = ["E", "F", "W", "I", "B"]
+ignore = [
+  "E203",   # slice spacing, disagrees with black-style formatting
+  "B008",   # call in default arg: used intentionally by the tidalapi wrappers
+]
+
+[tool.ruff.lint.per-file-ignores]
+"tests/*" = ["E402"]  # sys.path is prepared before importing the backend
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
