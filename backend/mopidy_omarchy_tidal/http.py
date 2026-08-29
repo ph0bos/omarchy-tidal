@@ -21,10 +21,13 @@ from __future__ import annotations
 import json
 import logging
 from concurrent.futures import ThreadPoolExecutor
+from urllib.parse import urlparse
 
+import tornado.httpclient
 import tornado.ioloop
 import tornado.web
 
+from . import images as images_mod
 from . import lyrics as lyrics_mod
 from . import text as text_mod
 from .session import SessionProvider, entity_id, track_id
@@ -38,6 +41,21 @@ _EXECUTOR = ThreadPoolExecutor(max_workers=4, thread_name_prefix="omarchy-tidal"
 # answer cannot change for a given track.
 _FORMAT_CACHE: dict[str, dict] = {}
 _FORMAT_CACHE_MAX = 256
+
+# Art is looked up one entity at a time and a scrolling list asks for many at
+# once, so cover art gets its own workers rather than queueing behind lyrics
+# and stream formats on the shared pool.
+_ART_EXECUTOR = ThreadPoolExecutor(max_workers=8, thread_name_prefix="omarchy-tidal-art")
+
+# Only Tidal's own asset host is fetchable through /art. Without this the
+# endpoint is an open proxy that anything on the machine could point at a
+# private address.
+_ART_HOSTS = ("resources.tidal.com",)
+
+# Pruning walks the whole cache directory, so it runs on a write every so often
+# rather than on every one.
+_ART_WRITES_PER_PRUNE = 100
+_art_writes = 0
 
 
 class BaseHandler(tornado.web.RequestHandler):
@@ -525,6 +543,105 @@ class FormatHandler(BaseHandler):
         self.write_json(dict(payload, uri=uri))
 
 
+def _content_type(payload: bytes) -> str:
+    """Sniffed, not trusted: Tidal serves jpeg today and the URL says nothing."""
+    if payload.startswith(b"\x89PNG"):
+        return "image/png"
+    if payload[:4] == b"RIFF" and payload[8:12] == b"WEBP":
+        return "image/webp"
+    return "image/jpeg"
+
+
+class ArtHandler(BaseHandler):
+    """Cover art for a URI, cached on disk.
+
+    Every list in the UI shows artwork, which is a lot of images for a library
+    of any size. Pointing the UI straight at resources.tidal.com would re-fetch
+    the same sleeves on every scroll and again after every shell restart, since
+    Qt's pixmap cache lives and dies with the process. Fetching through here
+    means each image crosses the network once, ever.
+
+    Takes either a `uri` to resolve (a browse ref has no art of its own) or a
+    `url` already in hand from /home or /album, so both paths share the cache.
+    """
+
+    async def get(self) -> None:
+        uri = self.get_argument("uri", "")
+        url = self.get_argument("url", "")
+        try:
+            size = max(80, min(1280, int(self.get_argument("size", "320"))))
+        except ValueError:
+            size = 320
+
+        if not uri and not url:
+            self.set_status(400)
+            self.write_json({"error": "expected a uri or a url"})
+            return
+
+        key = url or f"{uri}@{size}"
+        root = images_mod.cache_dir()
+        path = images_mod.path_for(key, root)
+
+        if path.is_file():
+            payload = await self.run(path.read_bytes)
+            images_mod.touch(path)
+            self.serve(payload)
+            return
+
+        if not url:
+            session = self.session_or_503()
+            if session is None:
+                return
+            hit, cached_url = images_mod.cached(key)
+            if hit:
+                url = cached_url or ""
+            else:
+                url = await tornado.ioloop.IOLoop.current().run_in_executor(
+                    _ART_EXECUTOR, images_mod.resolve, session, uri, size) or ""
+                images_mod.remember(key, url or None)
+            if not url:
+                # No art exists for this entity. 404 rather than a placeholder:
+                # the UI already knows what to draw in its place.
+                self.set_status(404)
+                self.finish()
+                return
+
+        host = (urlparse(url).hostname or "").lower()
+        if host not in _ART_HOSTS:
+            self.set_status(400)
+            self.write_json({"error": "refusing to fetch art from " + (host or "nowhere")})
+            return
+
+        try:
+            response = await tornado.httpclient.AsyncHTTPClient().fetch(
+                url, connect_timeout=5, request_timeout=15)
+        except Exception as exc:
+            logger.debug("omarchy-tidal: could not fetch art %s: %s", url, exc)
+            self.set_status(502)
+            self.finish()
+            return
+
+        payload = response.body
+        await self.run(images_mod.write_atomic, path, payload)
+        self.maybe_prune(root)
+        self.serve(payload)
+
+    def serve(self, payload: bytes) -> None:
+        self.set_header("Content-Type", _content_type(payload))
+        # Art is immutable: the URL contains the cover id, so a change of
+        # sleeve is a change of URL.
+        self.set_header("Cache-Control", "public, max-age=31536000, immutable")
+        self.write(payload)
+
+    def maybe_prune(self, root) -> None:
+        global _art_writes
+        _art_writes += 1
+        if _art_writes % _ART_WRITES_PER_PRUNE:
+            return
+        tornado.ioloop.IOLoop.current().run_in_executor(
+            _ART_EXECUTOR, images_mod.prune, root, images_mod.DEFAULT_MAX_BYTES)
+
+
 def factory(config, core):
     """Build the request rules Mopidy mounts under /omarchy-tidal/."""
     provider = SessionProvider(config)
@@ -540,4 +657,5 @@ def factory(config, core):
         (r"/artist", ArtistHandler, kwargs),
         (r"/album", AlbumHandler, kwargs),
         (r"/format", FormatHandler, kwargs),
+        (r"/art", ArtHandler, kwargs),
     ]

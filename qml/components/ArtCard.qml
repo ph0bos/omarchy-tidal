@@ -1,6 +1,7 @@
 import QtQuick
 import qs.Commons
 import "../lib/Design.js" as Design
+import "../lib/TidalApi.js" as Tidal
 
 // One piece of artwork in a Home shelf: a record, a mix, an artist, a track.
 //
@@ -58,7 +59,7 @@ Item {
       // Round for people, softly square for records -- the same distinction
       // the detail pages already make.
       radius: root.isArtist ? width / 2 : Style.space(4)
-      source: root.entry && root.entry.image ? String(root.entry.image) : ""
+      source: root.entry && root.entry.image ? Tidal.artProxy(String(root.entry.image), 320) : ""
 
       // The picture leans towards the cursor. Scaling the masked item scales
       // its mask with it, so the corners stay round through the whole move.

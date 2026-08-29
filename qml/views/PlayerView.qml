@@ -562,6 +562,14 @@ Item {
         font.pixelSize: Style.font.body
       }
 
+      ScrollHint {
+        anchors.right: parent.right
+        anchors.top: parent.top
+        anchors.bottom: parent.bottom
+        target: listView
+        opacity: listView.opacity
+      }
+
       ListView {
         id: listView
         anchors.fill: parent

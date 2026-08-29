@@ -158,6 +158,13 @@ Item {
     }
   }
 
+  ScrollHint {
+    anchors.right: parent.right
+    anchors.top: parent.top
+    anchors.bottom: parent.bottom
+    target: list
+  }
+
   // ---- first load ----
   //
   // Blocks in the shape of the page rather than a spinner: the layout is

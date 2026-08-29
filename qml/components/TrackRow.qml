@@ -2,6 +2,7 @@ import QtQuick
 import qs.Commons
 import "../lib/Library.js" as Library
 import "../lib/Design.js" as Design
+import "../lib/TidalApi.js" as Tidal
 
 // One row in the player's lists: a track, album, artist, playlist, or a folder
 // to descend into. Also used for the queue and for detail pages, which is why
@@ -39,13 +40,25 @@ Item {
   // Set on rows that come from a record rather than from a search: on an album
   // page the position and the running time are what you want in the margins,
   // and repeating the album name down every row says nothing.
+  // Every list shows artwork, the way Apple Music and TIDAL's own client do.
+  // Rows that arrive from /home or /album carry an image url already; a browse
+  // ref or a search result carries only a uri, and the companion resolves it.
+  // Either way the bytes come through the local cache.
+  readonly property string artSource: {
+    if (!root.row || root.isHeader) return ""
+    if (root.row.image) return Tidal.artProxy(String(root.row.image), 320)
+    return Tidal.artUrl(String(root.row.uri || ""), 320)
+  }
+
   readonly property string numberText: row && row.num ? String(row.num) : ""
   readonly property string durationText: row && row.duration ? Design.clock(row.duration) : ""
 
   // A row with an artist and album under the title needs two lines of room; a
   // numbered album track is one line and should not sit in a 38px gap.
+  // Artwork sets the floor on row height now: a 34px sleeve wants a 44px row
+  // with two lines of text beside it, 40 with one.
   implicitHeight: isHeader ? Style.space(30)
-                  : (hasMeta ? Style.space(38) : Style.space(30))
+                  : (hasMeta ? Style.space(44) : Style.space(40))
 
   Text {
     visible: root.isHeader
@@ -68,19 +81,67 @@ Item {
     radius: Style.space(3)
     color: root.selected ? Color.menu.selectedBackground : "transparent"
 
+    // Position, when the row has one, sits outside the sleeve: on an album
+    // page the numbers are a column you read down.
     Text {
-      id: typeIcon
+      id: trackNumber
       anchors.left: parent.left
-      anchors.leftMargin: Style.space(8)
+      anchors.leftMargin: Style.space(6)
       anchors.verticalCenter: parent.verticalCenter
-      width: Style.space(16)
-      horizontalAlignment: Text.AlignHCenter
-      text: root.playing ? "\uf028"
-            : (root.numberText !== "" ? root.numberText : Library.typeGlyph(root.rowType))
+      width: Style.space(18)
+      horizontalAlignment: Text.AlignRight
+      visible: root.numberText !== ""
+      text: root.numberText
       color: root.playing ? root.accent : Color.muted
       font.family: root.fontFamily
-      font.pixelSize: root.numberText !== "" && !root.playing
-                      ? Style.font.caption : Style.font.bodySmall
+      font.pixelSize: Style.font.caption
+    }
+
+    Item {
+      id: artSlot
+      anchors.left: trackNumber.visible ? trackNumber.right : parent.left
+      anchors.leftMargin: Style.space(8)
+      anchors.verticalCenter: parent.verticalCenter
+      width: Style.space(34)
+      height: width
+
+      RoundedImage {
+        id: art
+        anchors.fill: parent
+        // Round for people, softly square for records -- the distinction the
+        // detail pages and the Home shelves already make.
+        radius: root.rowType === "artist" ? width / 2 : Style.space(3)
+        source: root.artSource
+      }
+
+      // Whatever has no art of its own -- a folder, a section of the tree --
+      // keeps its glyph, inside the same silhouette so the column still lines
+      // up.
+      Text {
+        anchors.centerIn: parent
+        visible: !art.ready
+        text: Library.typeGlyph(root.rowType)
+        color: Color.muted
+        font.family: root.fontFamily
+        font.pixelSize: Style.font.bodySmall
+      }
+
+      // The playing row is marked on the sleeve itself rather than by taking
+      // the sleeve away.
+      Rectangle {
+        anchors.fill: parent
+        radius: art.radius
+        visible: root.playing
+        color: Qt.rgba(0, 0, 0, 0.55)
+
+        Text {
+          anchors.centerIn: parent
+          text: "\uf028"
+          color: root.accent
+          font.family: root.fontFamily
+          font.pixelSize: Style.font.bodySmall
+        }
+      }
     }
 
     Text {
@@ -109,8 +170,8 @@ Item {
     }
 
     Column {
-      anchors.left: typeIcon.right
-      anchors.leftMargin: Style.space(10)
+      anchors.left: artSlot.right
+      anchors.leftMargin: Style.space(11)
       anchors.right: durationLabel.visible ? durationLabel.left
                      : (chevron.visible ? chevron.left : parent.right)
       anchors.rightMargin: Style.space(10)

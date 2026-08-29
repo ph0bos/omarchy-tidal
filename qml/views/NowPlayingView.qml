@@ -39,7 +39,9 @@ Item {
   signal openUri(string uri, string title)
 
   readonly property string trackUri: svc ? svc.trackUri : ""
-  readonly property string artUrl: svc ? svc.artUrl : ""
+  // Through the companion's cache when it is a Tidal asset, untouched when it
+  // is anything else -- MPRIS art can be a local file.
+  readonly property string artUrl: svc ? Tidal.artProxy(svc.artUrl, 640) : ""
 
   // ---- lyrics -------------------------------------------------------------
   //

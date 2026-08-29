@@ -111,3 +111,29 @@ function album(uri, onOk, onErr) {
 // Negotiated stream format for what is playing right now.
 // -> { codec, bit_depth, sample_rate, quality, is_hires }
 function streamFormat(onOk, onErr) { _request("GET", "/format", null, onOk, onErr) }
+
+// ---- artwork ----------------------------------------------------------------
+//
+// Every image in the UI is fetched through the companion rather than straight
+// from Tidal's CDN, so it crosses the network once and is served from disk
+// after that -- including after a shell restart, which empties Qt's own pixmap
+// cache. `artUrl` is for a uri with no art in hand (a browse ref, a search
+// result); `artProxy` is for a url that /home or /album already gave us.
+//
+// Both are plain string builders: an Image binding calls them on every
+// delegate, so they must not make requests of their own.
+
+function artUrl(uri, size) {
+  var s = String(uri || "")
+  if (s.indexOf("tidal:") !== 0) return ""
+  return BASE + "/art" + _q({ uri: s, size: size || 320 })
+}
+
+function artProxy(url, size) {
+  var s = String(url || "")
+  // Anything that is not a Tidal asset -- a local file, a data: uri -- is left
+  // exactly as it is. The cache has nothing to offer it and the proxy would
+  // refuse to fetch it anyway.
+  if (s.indexOf("https://resources.tidal.com/") !== 0) return s
+  return BASE + "/art" + _q({ url: s, size: size || 320 })
+}

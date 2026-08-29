@@ -1,6 +1,7 @@
 import QtQuick
 import qs.Commons
 import "../lib/Design.js" as Design
+import "../lib/TidalApi.js" as Tidal
 
 // Transport strip along the bottom of the player.
 //
@@ -87,7 +88,7 @@ Item {
         id: barArt
         anchors.fill: parent
         radius: Style.space(3)
-        source: root.svc ? root.svc.artUrl : ""
+        source: root.svc ? Tidal.artProxy(root.svc.artUrl, 160) : ""
       }
 
       // Expand affordance, revealed on hover so it does not clutter the bar.

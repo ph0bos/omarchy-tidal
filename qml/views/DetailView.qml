@@ -176,6 +176,13 @@ Item {
     font.pixelSize: Style.font.body
   }
 
+  ScrollHint {
+    anchors.right: parent.right
+    anchors.top: parent.top
+    anchors.bottom: parent.bottom
+    target: flick
+  }
+
   Flickable {
     id: flick
     anchors.fill: parent
@@ -199,7 +206,7 @@ Item {
           height: width
           // Circular for people, softly rounded for records.
           radius: root.isArtist ? width / 2 : Style.space(5)
-          source: root.page && root.page.image ? root.page.image : ""
+          source: root.page && root.page.image ? Tidal.artProxy(root.page.image, 640) : ""
         }
 
         Column {
@@ -405,6 +412,7 @@ Item {
               artist: "",
               album: root.isArtist ? (modelData.album || "") : "",
               subtitle: "",
+              image: modelData.image || "",
               num: modelData.track_num || 0,
               duration: modelData.duration || 0,
               type: "track",

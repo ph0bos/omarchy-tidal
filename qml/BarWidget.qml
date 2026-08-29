@@ -1,6 +1,7 @@
 import QtQuick
 import qs.Ui
 import qs.Commons
+import "lib/TidalApi.js" as Tidal
 import "components"
 
 // TIDAL now-playing for the Omarchy bar.
@@ -24,7 +25,7 @@ BarWidget {
   readonly property bool playing: svc ? svc.playing : false
   readonly property string title: svc ? svc.title : ""
   readonly property string artist: svc ? svc.artist : ""
-  readonly property string artUrl: svc ? svc.artUrl : ""
+  readonly property string artUrl: svc ? Tidal.artProxy(svc.artUrl, 80) : ""
   readonly property string qualityLabel: svc ? svc.qualityLabel : ""
   readonly property bool isHiRes: svc ? svc.isHiRes : false
   readonly property bool favorite: svc ? svc.favorite : false
