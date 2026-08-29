@@ -176,7 +176,8 @@ def _item_payload(item) -> dict | None:
                 "type": "playlist",
                 "uri": f"tidal:playlist:{item.id}",
                 "name": item.name,
-                "artist": getattr(item, "creator", None) and getattr(item.creator, "name", "") or "",
+                "artist": (getattr(item, "creator", None)
+                           and getattr(item.creator, "name", "")) or "",
                 "image": image(),
             }
         if kind == "mix":

@@ -1,0 +1,110 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+  workflow_dispatch:
+
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  manifest:
+    name: Manifest and repository layout
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      # Mirrors `omarchy plugin validate`, which only exists on an Omarchy host.
+      - name: Validate manifest
+        run: python3 scripts/validate-manifest.py .
+
+  python:
+    name: Backend lint and tests
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - name: Install tooling
+        run: python -m pip install --upgrade pip ruff pytest requests
+      - name: Lint
+        run: ruff check backend scripts tests
+      - name: Test
+        run: python -m pytest tests -q
+
+  javascript:
+    name: QML JavaScript tests
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+      - name: Test
+        run: node --test tests/js.test.mjs
+
+  qml:
+    name: QML lint
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Install Qt
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y --no-install-recommends qt6-declarative-dev-tools
+      # Quickshell and Omarchy's qs.* modules are not installable on a runner,
+      # so their types cannot resolve here. Syntax errors still surface, and
+      # those are the failures worth blocking a merge on.
+      - name: Lint QML syntax
+        run: |
+          set -euo pipefail
+          LINT=$(command -v qmllint6 || command -v qmllint || echo /usr/lib/qt6/bin/qmllint)
+          echo "using: $LINT"
+          fail=0
+          while IFS= read -r f; do
+            out=$("$LINT" "$f" 2>&1 || true)
+            if grep -qE '\[syntax\]|Unexpected token|Expected token' <<<"$out"; then
+              echo "::error file=$f::QML syntax error"
+              echo "$out" | grep -E '\[syntax\]|Unexpected token|Expected token'
+              fail=1
+            fi
+          done < <(find qml -name '*.qml')
+          exit $fail
+
+  shell:
+    name: Shell scripts
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Syntax check
+        run: |
+          set -euo pipefail
+          for f in bin/*; do
+            head -1 "$f" | grep -q bash && bash -n "$f" && echo "ok: $f"
+          done
+      - name: Shellcheck
+        run: |
+          sudo apt-get update && sudo apt-get install -y shellcheck
+          shellcheck --severity=warning bin/omarchy-tidal-setup bin/omarchy-tidal-cava
+
+  glyphs:
+    name: Glyph escapes
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      # Nerd Font codepoints get silently stripped when QML is written through
+      # a shell heredoc, which shows up as invisible icons at runtime. Catch a
+      # stripped glyph here instead of in a screenshot.
+      - name: No empty glyph strings
+        run: |
+          if grep -rnE '(glyph|text): *""' qml --include='*.qml' | grep -v 'action: "sep"'; then
+            echo "::error::empty glyph string found - write Nerd Font glyphs as \\uXXXX escapes"
+            exit 1
+          fi
+          echo "ok: no stripped glyphs"
