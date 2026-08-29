@@ -112,6 +112,11 @@ function album(uri, onOk, onErr) {
 // -> { codec, bit_depth, sample_rate, quality, is_hires }
 function streamFormat(onOk, onErr) { _request("GET", "/format", null, onOk, onErr) }
 
+// A playlist page: art, creator, description and its tracks.
+function playlistPage(uri, onOk, onErr) {
+  _request("GET", "/playlist" + _q({ uri: uri }), null, onOk, onErr)
+}
+
 // The playlists this account can write to -- the ones the user made.
 // -> { items: [{ uri, name, num_tracks, image }] }
 function playlists(onOk, onErr) { _request("GET", "/playlists", null, onOk, onErr) }

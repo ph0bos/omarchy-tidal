@@ -23,17 +23,31 @@ Item {
   Component.onDestruction: root.alive = false
 
   property var page: null
+  // The track list is held apart from the page so a row removed from a playlist
+  // can leave without the whole page being fetched again.
+  property var tracks: []
   property bool loading: false
   property string errorText: ""
   property bool bioExpanded: false
 
   readonly property bool isArtist: uri.indexOf("tidal:artist:") === 0
+  readonly property bool isPlaylist: uri.indexOf("tidal:playlist:") === 0
+
+  // Each kind calls its prose something different and TIDAL returns it under a
+  // different name; the page shows it in the same place regardless.
   readonly property string body: {
     if (!page) return ""
-    return String((isArtist ? page.bio : page.review) || "")
+    if (isArtist) return String(page.bio || "")
+    if (isPlaylist) return String(page.description || "")
+    return String(page.review || "")
+  }
+  readonly property string bodyLabel: {
+    if (isArtist) return "BIOGRAPHY"
+    if (isPlaylist) return "ABOUT"
+    return "REVIEW"
   }
   readonly property var mentions: {
-    if (!page) return []
+    if (!page || isPlaylist) return []
     var all = (isArtist ? page.bio_links : page.review_links) || []
     // TIDAL's editorial nearly always names the record it is reviewing, which
     // arrives as a link back to this very page. Drop it.
@@ -61,11 +75,13 @@ Item {
     // root.isArtist still describes the PREVIOUS uri at this point.
     var wantArtist = want.indexOf("tidal:artist:") === 0
     var wantAlbum = want.indexOf("tidal:album:") === 0
-    if (!wantArtist && !wantAlbum) {
-      root.errorText = "Not an artist or album: " + want
+    var wantPlaylist = want.indexOf("tidal:playlist:") === 0
+    if (!wantArtist && !wantAlbum && !wantPlaylist) {
+      root.errorText = "No page for " + want
       return
     }
     root.page = null
+    root.tracks = []
     root.bioExpanded = false
     root.loading = true
     root.errorText = ""
@@ -73,6 +89,9 @@ Item {
     function ok(payload) {
       if (!root.alive || root.uri !== want) return
       root.page = payload
+      root.tracks = payload
+        ? ((wantArtist ? payload.top_tracks : payload.tracks) || [])
+        : []
       root.loading = false
       if (payload && payload.name) root.titleResolved(String(payload.name))
     }
@@ -83,7 +102,29 @@ Item {
     }
 
     if (wantArtist) Tidal.artist(want, ok, fail)
+    else if (wantPlaylist) Tidal.playlistPage(want, ok, fail)
     else Tidal.album(want, ok, fail)
+  }
+
+  // Take a track back out of a playlist. Dropped locally on success rather than
+  // re-fetching the page: the list keeps its place, which is where the reader
+  // is looking.
+  function removeTrack(trackUri) {
+    if (!root.isPlaylist || trackUri === "") return
+    Tidal.playlistRemove(root.uri, [trackUri], function() {
+      if (!root.alive) return
+      var kept = []
+      for (var i = 0; i < root.tracks.length; i++) {
+        if (String(root.tracks[i].uri) !== trackUri) kept.push(root.tracks[i])
+      }
+      root.tracks = kept
+      if (root.svc) root.svc.osd("Removed from " + String(root.page.name || "playlist"), "media")
+    }, function(err) {
+      // An OSD rather than the page's error slot: the page itself loaded fine,
+      // and replacing it with an error message would be a strange answer to a
+      // failed row removal.
+      if (root.alive && root.svc) root.svc.osd("Could not remove: " + err, "media")
+    })
   }
 
   function playAll() {
@@ -114,6 +155,7 @@ Item {
       }
       return parts.join(" · ")
     }
+    if (isPlaylist && page.creator) parts.push("by " + page.creator)
     if (page.artist) parts.push(page.artist)
     if (page.year) parts.push(String(page.year))
     if (page.num_tracks) parts.push(page.num_tracks + (page.num_tracks === 1 ? " track" : " tracks"))
@@ -291,7 +333,7 @@ Item {
         visible: root.body !== ""
 
         Text {
-          text: root.isArtist ? "BIOGRAPHY" : "REVIEW"
+          text: root.bodyLabel
           color: Color.muted
           font.family: root.fontFamily
           font.pixelSize: Style.font.caption
@@ -397,7 +439,7 @@ Item {
 
         Repeater {
           id: trackRepeater
-          model: root.page ? (root.isArtist ? root.page.top_tracks : root.page.tracks) : []
+          model: root.tracks
 
           TrackRow {
             id: trackItem
@@ -409,11 +451,11 @@ Item {
               // On an album page every row would otherwise repeat the album
               // name and the artist already in the hero above it. On an artist
               // page the record a top track comes from is worth saying.
-              artist: "",
-              album: root.isArtist ? (modelData.album || "") : "",
+              artist: root.isPlaylist ? (modelData.artist || "") : "",
+              album: root.isArtist || root.isPlaylist ? (modelData.album || "") : "",
               subtitle: "",
               image: modelData.image || "",
-              num: modelData.track_num || 0,
+              num: root.isPlaylist ? 0 : (modelData.track_num || 0),
               duration: modelData.duration || 0,
               type: "track",
               // Everything this row shows is already decided here, so it must
@@ -425,6 +467,11 @@ Item {
             foreground: root.foreground
             accent: Color.accent
             fontFamily: root.fontFamily
+
+            // Only your own playlists offer this, and only on hover.
+            removable: root.isPlaylist && root.page && root.page.editable === true
+
+            onRemoved: root.removeTrack(String(trackItem.modelData.uri))
 
             onActivated: Rpc.playNow([trackItem.modelData.uri])
             onQueued: Rpc.queue([trackItem.modelData.uri], function() {

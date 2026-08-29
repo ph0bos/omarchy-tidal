@@ -2,7 +2,7 @@
   "schemaVersion": 1,
   "id": "quickshell.tidal",
   "name": "TIDAL",
-  "version": "0.3.0",
+  "version": "0.3.1",
   "author": "stevenr",
   "description": "TIDAL in Quickshell with true hi-res lossless playback — up to 24-bit/192kHz FLAC, not the 320 kbps every other music plugin settles for.",
   "kinds": [

@@ -761,12 +761,62 @@ class PlaylistsHandler(BaseHandler):
 
 
 class PlaylistEditHandler(BaseHandler):
-    """Add to, remove from, and create playlists.
+    """A playlist page, and the edits you can make to one.
+
+    GET is the page the UI draws; POST is add, remove and create.
+
+    Add to, remove from, and create playlists.
 
     One handler for the three because they share the argument checking and the
     "which playlist" lookup, and because they are the same request to the UI:
     something happened to a playlist.
     """
+
+    async def get(self) -> None:
+        uri = self.get_argument("uri", "")
+        parsed = images_mod.split(uri)
+        if parsed is None or parsed[0] != "playlist":
+            self.set_status(400)
+            self.write_json({"error": "expected a tidal:playlist: uri"})
+            return
+
+        session = self.session_or_503()
+        if session is None:
+            return
+
+        def work():
+            playlist = session.playlist(parsed[1])
+            creator = getattr(playlist, "creator", None)
+            tracks = []
+            for item in _safe(lambda: playlist.tracks(limit=100), []) or []:
+                payload = _item_payload(item)
+                if payload:
+                    tracks.append(payload)
+            return {
+                "uri": uri,
+                "type": "playlist",
+                "name": getattr(playlist, "name", "") or "",
+                "creator": str(getattr(creator, "name", "") or "") if creator else "",
+                # Only your own playlists can be edited. Tidal reports the
+                # creator's id, so this is a comparison rather than a guess at
+                # what "me" means.
+                "editable": creator is not None
+                and str(getattr(creator, "id", "")) == str(getattr(session.user, "id", "")),
+                "description": text_mod.clean(getattr(playlist, "description", "") or "")[0],
+                "image": image_of(playlist, 640) or image_of(playlist, 320),
+                "num_tracks": getattr(playlist, "num_tracks", None),
+                "duration": getattr(playlist, "duration", None),
+                "last_updated": str(getattr(playlist, "last_updated", "") or ""),
+                "tracks": tracks,
+                "share_url": f"https://tidal.com/browse/playlist/{parsed[1]}",
+            }
+
+        try:
+            self.write_json(await self.run(work))
+        except Exception as exc:
+            logger.warning("omarchy-tidal: playlist page failed: %s", exc)
+            self.set_status(502)
+            self.write_json({"error": str(exc)})
 
     async def post(self) -> None:
         body = self.body_json()

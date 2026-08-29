@@ -148,7 +148,8 @@ lyrics and credits, a spectrum analyser, quick menu, in-shell sign-in,
 keybindings, CI green. Your own albums, artists, tracks and playlists come from
 the companion whole and paged, rather than as browse refs plus a lookup per row.
 The queue can be reordered by removal: jump to an entry, take one out, empty it.
-Any track can be filed into a playlist, or into a new one, with `P`.
+Any track can be filed into a playlist, or into a new one, with `P`, and
+playlists have pages of their own that you can take tracks back out of.
 
 The visual design pass is done and drove the rest of it: one motion vocabulary,
 one artwork tile, one playhead, one grid. Screenshots in `docs/screenshots/` are
@@ -156,11 +157,9 @@ current.
 
 Next, in the order that makes sense:
 
-1. **Playlist reordering**, and removing a track from a playlist page. Adding
-   and creating are done (`/playlists`, `/playlist`); tidalapi has
-   `move_by_index` and `remove_by_index` for the rest, and a playlist detail
-   page is the surface they belong on -- DetailView only knows artists and
-   albums today.
+1. **Playlist reordering.** Adding, creating and removing are done, and
+   playlists have their own page; tidalapi's `move_by_index` is the last piece,
+   and drag-to-reorder is the interaction it wants.
 3. **Sleep timer**, and **TIDAL Connect device switching**.
 4. **A settings surface** for the plugin's own options, rather than the widget
    schema being the only place to change anything.

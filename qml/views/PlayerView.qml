@@ -322,7 +322,7 @@ Item {
   function playRow(row) {
     if (!row || !row.uri) return
     if (row.queued === true) { root.playQueueRow(row); return }
-    if (row.type === "track" || row.type === "album" || row.type === "playlist") {
+    if (row.type === "track" || row.type === "album") {
       Rpc.playNow([row.uri], null, function(err) { if (root.alive) root.errorText = err })
     } else {
       openRow(row)
@@ -340,7 +340,7 @@ Item {
     if (!row || !row.uri) return
     if (row.type === "track") { playRow(row); return }
     root.pushHistory()
-    if (row.type === "album" || row.type === "artist") {
+    if (row.type === "album" || row.type === "artist" || row.type === "playlist") {
       root.showDetail(row.uri, row.name)
       return
     }
@@ -356,7 +356,7 @@ Item {
     var type = String(entry.type || "")
     if (type === "track") { root.playEntry(entry); return }
     root.pushHistory()
-    if (type === "album" || type === "artist") {
+    if (type === "album" || type === "artist" || type === "playlist") {
       root.showDetail(uri, String(entry.name || ""))
       return
     }

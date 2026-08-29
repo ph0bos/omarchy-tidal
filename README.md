@@ -143,6 +143,9 @@ whatever is playing.
 Only playlists you made yourself are offered: the favourites list includes other
 people's, and adding to those fails at TIDAL's end rather than here.
 
+Playlists open as pages of their own — cover, who made it, how long it runs, and
+its tracks — and on one of yours, a row can be taken back out.
+
 ### Mini player
 
 ![The mini player](docs/screenshots/mini.png)
