@@ -66,32 +66,56 @@ Item {
   readonly property string artist: player ? (player.trackArtist || "") : ""
   readonly property string album: player ? (player.trackAlbum || "") : ""
   readonly property string artUrl: player ? (player.trackArtUrl || "") : ""
-  // MPRIS only emits a position change on an explicit seek -- it never ticks.
-  // Reading player.position costs a D-Bus round trip, so the timeline is run
-  // from a local clock and re-synced against the player periodically. Without
-  // this the seek bar sits at 0:00 for the whole track.
+  // MPRIS only emits a position change on an explicit seek -- it never ticks,
+  // and reading player.position costs a D-Bus round trip. So the timeline runs
+  // off a wall-clock anchor rather than an accumulating counter:
+  //
+  //   position = anchorPos + (now - anchorAt)
+  //
+  // Incrementing a counter on a 500ms timer drifts, because timers fire late
+  // under load and the error accumulates for the whole track. Deriving from
+  // Date.now() cannot drift; the timer only decides how often the UI repaints.
   property real position: 0
-  property int positionTicks: 0
+  property real anchorPos: 0
+  property real anchorAt: 0
+
+  function anchorPosition(seconds) {
+    root.anchorPos = Math.max(0, seconds)
+    root.anchorAt = Date.now()
+    root.position = root.anchorPos
+  }
 
   function syncPosition() {
-    if (player && player.positionSupported) root.position = player.position
+    if (player && player.positionSupported) root.anchorPosition(player.position)
   }
 
   Timer {
     id: positionTimer
     running: root.playing && root.hasTrack
-    interval: 500
+    interval: 100
     repeat: true
     onTriggered: {
       if (!root.alive) return
-      root.position += 0.5
-      root.positionTicks += 1
-      // Re-anchor every 5s so local drift and outside seeks both get corrected.
-      if (root.positionTicks % 10 === 0) root.syncPosition()
+      var next = root.anchorPos + (Date.now() - root.anchorAt) / 1000
+      root.position = root.length > 0 ? Math.min(next, root.length) : next
     }
   }
 
-  onPlayingChanged: if (root.alive) root.syncPosition()
+  // Re-anchor against the player periodically so an outside seek, a pause, or
+  // buffering cannot leave the bar telling a different story than the audio.
+  Timer {
+    running: root.playing && root.hasTrack
+    interval: 5000
+    repeat: true
+    onTriggered: if (root.alive) root.syncPosition()
+  }
+
+  onPlayingChanged: {
+    if (!root.alive) return
+    // Freeze the clock where it is on pause, then re-anchor from the player.
+    root.anchorPosition(root.position)
+    Qt.callLater(root.syncPosition)
+  }
   readonly property real length: player && player.lengthSupported ? player.length : 0
   readonly property bool hasTrack: connected && (title !== "" || artist !== "")
 
@@ -239,8 +263,7 @@ Item {
   }
 
   onTrackUriChanged: {
-    root.position = 0
-    root.positionTicks = 0
+    root.anchorPosition(0)
     Qt.callLater(root.syncPosition)
     root.favorite = false
     root.format = null
@@ -344,14 +367,25 @@ Item {
     return true
   }
 
-  function seekTo(ms) {
-    // Move the local clock immediately so the bar responds without waiting for
-    // the round trip, then confirm against the player.
-    root.position = ms / 1000
+  // Seeking is split in two so scrubbing stays smooth.
+  //
+  // previewSeek moves only the local clock: dragging the playhead fires on
+  // every mouse move, and issuing a seek RPC per move floods Mopidy and makes
+  // the audio stutter. commitSeek is the one call that actually moves playback.
+  function previewSeek(ms) {
+    root.anchorPosition(ms / 1000)
+  }
+
+  function commitSeek(ms) {
+    root.anchorPosition(ms / 1000)
     Rpc.seek(ms, function() {
+      // Re-anchor once the backend confirms, so a rejected or clamped seek
+      // corrects itself rather than leaving the bar lying.
       if (root.alive) Qt.callLater(root.syncPosition)
     }, function(err) { if (root.alive) root.lastError = err })
   }
+
+  function seekTo(ms) { root.commitSeek(ms) }
 
   // ---- surfaces ------------------------------------------------------------
 

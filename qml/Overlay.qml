@@ -63,6 +63,8 @@ Item {
     var requested = String(args.view || "search")
     root.currentView = root.ready || requested === "setup" ? requested : "setup"
     root.opened = true
+    if (root.currentView === "search") root.playerLoaded = true
+    else if (root.currentView === "nowPlaying") root.nowPlayingLoaded = true
     if (root.svc) root.svc.probeBackend()
 
     // Deep link: summon straight to an artist or album page. Stored rather than
@@ -77,6 +79,17 @@ Item {
   function close() { root.menuOpen = false; root.opened = false }
 
   property bool menuOpen: false
+
+  // Views stay loaded once visited. Destroying and rebuilding them on every
+  // switch threw away scroll position and search results, and tore down the
+  // analyser's audio capture along with it.
+  property bool playerLoaded: false
+  property bool nowPlayingLoaded: false
+
+  onCurrentViewChanged: {
+    if (root.currentView === "search") root.playerLoaded = true
+    else if (root.currentView === "nowPlaying") root.nowPlayingLoaded = true
+  }
 
   readonly property bool canGoBack: currentView === "search" && playerLoader.item
     && playerLoader.item.history !== undefined && playerLoader.item.history.length > 0
@@ -273,8 +286,8 @@ Item {
           anchors.bottom: transportBar.top
           anchors.margins: Style.space(10)
           anchors.topMargin: Style.space(6)
-          active: root.currentView === "search"
-          visible: active
+          active: root.playerLoaded || root.currentView === "search"
+          visible: root.currentView === "search"
 
           sourceComponent: PlayerView {
             svc: root.svc
@@ -294,8 +307,8 @@ Item {
           anchors.right: parent.right
           anchors.bottom: transportBar.top
           anchors.margins: Style.space(4)
-          active: root.currentView === "nowPlaying"
-          visible: active
+          active: root.nowPlayingLoaded || root.currentView === "nowPlaying"
+          visible: root.currentView === "nowPlaying"
 
           sourceComponent: NowPlayingView {
             svc: root.svc

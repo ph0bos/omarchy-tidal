@@ -36,10 +36,23 @@ Item {
     return m + ":" + (s < 10 ? "0" + s : s)
   }
 
-  function seekToFraction(fraction) {
+  // While the playhead is held, `position` follows the pointer locally and no
+  // seek is sent. One seek goes out on release. Sending a seek per mouse-move
+  // floods the backend and makes the audio stutter under the cursor.
+  property bool scrubbing: false
+
+  function fractionToMs(fraction) {
+    return Math.max(0, Math.min(1, fraction)) * root.length * 1000
+  }
+
+  function previewFraction(fraction) {
     if (!root.svc || root.length <= 0) return
-    var f = Math.max(0, Math.min(1, fraction))
-    root.svc.seekTo(f * root.length * 1000)
+    root.svc.previewSeek(root.fractionToMs(fraction))
+  }
+
+  function commitFraction(fraction) {
+    if (!root.svc || root.length <= 0) return
+    root.svc.commitSeek(root.fractionToMs(fraction))
   }
 
   Rectangle {
@@ -246,7 +259,7 @@ Item {
       // Playhead. Grows on hover/drag so the bar reads as grabbable.
       Rectangle {
         id: knob
-        width: seekMouse.containsMouse || seekMouse.pressed ? Style.space(11) : Style.space(8)
+        width: seekMouse.containsMouse || root.scrubbing ? Style.space(11) : Style.space(8)
         height: width
         radius: width / 2
         color: Color.accent
@@ -264,11 +277,20 @@ Item {
         cursorShape: Qt.PointingHandCursor
         preventStealing: true
 
-        // Click anywhere on the bar jumps there; dragging scrubs continuously.
-        onPressed: function(mouse) { root.seekToFraction(mouse.x / width) }
-        onPositionChanged: function(mouse) {
-          if (pressed) root.seekToFraction(mouse.x / width)
+        // Press and drag preview locally; the seek is issued once, on release.
+        onPressed: function(mouse) {
+          root.scrubbing = true
+          root.previewFraction(mouse.x / width)
         }
+        onPositionChanged: function(mouse) {
+          if (root.scrubbing) root.previewFraction(mouse.x / width)
+        }
+        onReleased: function(mouse) {
+          if (!root.scrubbing) return
+          root.scrubbing = false
+          root.commitFraction(mouse.x / width)
+        }
+        onCanceled: root.scrubbing = false
       }
     }
   }
