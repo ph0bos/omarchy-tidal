@@ -119,6 +119,7 @@ Item {
     Rpc.ping(function() {
       if (!root.alive) return
       root.backendState = "up"
+      root.refreshModes()
       Tidal.health(function(info) {
         if (!root.alive) return
         root.companionAvailable = true
@@ -146,6 +147,66 @@ Item {
     repeat: true
     triggeredOnStart: true
     onTriggered: { if (root.alive) root.probeBackend() }
+  }
+
+  // ---- playback modes ------------------------------------------------------
+  //
+  // Mopidy models repeat as two independent flags (repeat + single), which is
+  // awkward to present. They are folded into one three-state value here:
+  //   off -> all -> single -> off
+  property bool shuffle: false
+  property string repeatMode: "off"   // off | all | single
+  property bool consume: false
+
+  function refreshModes() {
+    Rpc.call("core.tracklist.get_random", null, function(v) {
+      if (root.alive) root.shuffle = !!v
+    })
+    Rpc.call("core.tracklist.get_repeat", null, function(rep) {
+      if (!root.alive) return
+      Rpc.call("core.tracklist.get_single", null, function(single) {
+        if (!root.alive) return
+        root.repeatMode = !rep ? "off" : (single ? "single" : "all")
+      })
+    })
+    Rpc.call("core.tracklist.get_consume", null, function(v) {
+      if (root.alive) root.consume = !!v
+    })
+  }
+
+  function toggleShuffle() {
+    var next = !root.shuffle
+    Rpc.setRandom(next, function() {
+      if (!root.alive) return
+      root.shuffle = next
+      root.osd(next ? "Shuffle on" : "Shuffle off", "media")
+    })
+    return true
+  }
+
+  function cycleRepeat() {
+    var next = root.repeatMode === "off" ? "all" : (root.repeatMode === "all" ? "single" : "off")
+    var rep = next !== "off"
+    var single = next === "single"
+    Rpc.setRepeat(rep, function() {
+      Rpc.call("core.tracklist.set_single", { value: single }, function() {
+        if (!root.alive) return
+        root.repeatMode = next
+        root.osd(next === "off" ? "Repeat off"
+               : (next === "all" ? "Repeat all" : "Repeat track"), "media")
+      })
+    })
+    return true
+  }
+
+  function toggleConsume() {
+    var next = !root.consume
+    Rpc.setConsume(next, function() {
+      if (!root.alive) return
+      root.consume = next
+      root.osd(next ? "Pause after track" : "Continue playing", "media")
+    })
+    return true
   }
 
   // ---- stream quality ------------------------------------------------------
@@ -320,6 +381,12 @@ Item {
       uri: root.trackUri,
       favorite: root.favorite,
       quality: root.qualityLabel,
+      shuffle: root.shuffle,
+      repeat: root.repeatMode,
+      consume: root.consume,
+      lyricsSource: root.lyrics && root.lyrics.source ? root.lyrics.source : "",
+      lyricsSynced: root.lyrics && root.lyrics.synced ? root.lyrics.synced.length : 0,
+      lyricsPlain: root.lyrics && root.lyrics.plain ? root.lyrics.plain.length : 0,
       hiRes: root.isHiRes,
       position: root.position,
       length: root.length
@@ -341,6 +408,9 @@ Item {
     function setup(): string { return root.openView("setup") ? "ok" : "unhandled" }
     function favorite(): string { return root.toggleFavorite() ? "ok" : "unhandled" }
     function radio(): string { return root.startRadio() ? "ok" : "unhandled" }
+    function shuffle(): string { return root.toggleShuffle() ? "ok" : "unhandled" }
+    function repeat(): string { return root.cycleRepeat() ? "ok" : "unhandled" }
+    function consume(): string { return root.toggleConsume() ? "ok" : "unhandled" }
     function playPause(): string { return root.playPause() ? "ok" : "unhandled" }
     function next(): string { return root.next() ? "ok" : "unhandled" }
     function previous(): string { return root.previous() ? "ok" : "unhandled" }

@@ -246,7 +246,7 @@ Item {
     id: sidebar
     anchors.left: parent.left
     anchors.top: parent.top
-    anchors.bottom: playerBar.top
+    anchors.bottom: parent.bottom
     width: Style.space(168)
     color: "transparent"
 
@@ -309,7 +309,7 @@ Item {
   Rectangle {
     anchors.left: sidebar.right
     anchors.top: parent.top
-    anchors.bottom: playerBar.top
+    anchors.bottom: parent.bottom
     width: Math.max(1, Style.space(1))
     color: Color.menu.border
     opacity: 0.4
@@ -322,7 +322,7 @@ Item {
     anchors.leftMargin: Style.space(12)
     anchors.right: parent.right
     anchors.top: parent.top
-    anchors.bottom: playerBar.top
+    anchors.bottom: parent.bottom
 
     TextField {
       id: searchField
@@ -410,17 +410,6 @@ Item {
         onOpened: { root.selectedIndex = index; root.openRow(modelData) }
       }
     }
-  }
-
-  // Transport
-  PlayerBar {
-    id: playerBar
-    anchors.left: parent.left
-    anchors.right: parent.right
-    anchors.bottom: parent.bottom
-    svc: root.svc
-    foreground: root.foreground
-    fontFamily: root.fontFamily
   }
 
   // ---- keyboard ----
