@@ -112,6 +112,24 @@ function album(uri, onOk, onErr) {
 // -> { codec, bit_depth, sample_rate, quality, is_hires }
 function streamFormat(onOk, onErr) { _request("GET", "/format", null, onOk, onErr) }
 
+// The playlists this account can write to -- the ones the user made.
+// -> { items: [{ uri, name, num_tracks, image }] }
+function playlists(onOk, onErr) { _request("GET", "/playlists", null, onOk, onErr) }
+
+function playlistAdd(playlistUri, trackUris, onOk, onErr) {
+  _request("POST", "/playlist",
+           { action: "add", playlist: playlistUri, uris: trackUris }, onOk, onErr)
+}
+
+function playlistRemove(playlistUri, trackUris, onOk, onErr) {
+  _request("POST", "/playlist",
+           { action: "remove", playlist: playlistUri, uris: trackUris }, onOk, onErr)
+}
+
+function playlistCreate(name, onOk, onErr) {
+  _request("POST", "/playlist", { action: "create", name: name }, onOk, onErr)
+}
+
 // A page of someone's favourites, with the metadata already attached.
 // -> { section, offset, limit, items: [...], more }
 function library(section, limit, offset, onOk, onErr) {

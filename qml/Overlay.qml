@@ -126,6 +126,22 @@ Item {
 
   property bool menuOpen: false
 
+  // "Add to playlist", raised over whatever surface asked for it.
+  property bool pickerOpen: false
+  property string pickerUri: ""
+  property string pickerTitle: ""
+
+  function addToPlaylist(uri, title) {
+    if (!uri || String(uri).indexOf("tidal:track:") !== 0) {
+      if (root.svc) root.svc.osd("No TIDAL track to add", "media")
+      return
+    }
+    root.menuOpen = false
+    root.pickerUri = String(uri)
+    root.pickerTitle = String(title || "")
+    root.pickerOpen = true
+  }
+
   // Views stay loaded once visited. Destroying and rebuilding them on every
   // switch threw away scroll position and search results, and tore down the
   // analyser's audio capture along with it.
@@ -169,6 +185,7 @@ Item {
       case "shuffle":  root.svc.toggleShuffle(); break
       case "repeat":   root.svc.cycleRepeat(); break
       case "consume":  root.svc.toggleConsume(); break
+      case "playlist": root.addToPlaylist(root.svc.trackUri, root.svc.title); break
     }
   }
 
@@ -377,6 +394,7 @@ Item {
             deepLinkUri: root.pendingUri
             deepLinkTitle: root.pendingTitle
             deepLinkSerial: root.deepLinkSerial
+            onAddToPlaylist: function(uri, title) { root.addToPlaylist(uri, title) }
           }
         }
 
@@ -428,6 +446,23 @@ Item {
           visible: root.menuOpen
           z: 90
           onClicked: root.menuOpen = false
+        }
+
+        // Above the card's own content, and focused while it is up.
+        PlaylistPicker {
+          id: playlistPicker
+          anchors.fill: parent
+          z: 200
+          visible: root.pickerOpen
+          svc: root.svc
+          foreground: root.foreground
+          fontFamily: root.fontFamily
+          trackUri: root.pickerUri
+          trackTitle: root.pickerTitle
+          onClosed: {
+            root.pickerOpen = false
+            Qt.callLater(root.focusView)
+          }
         }
 
         QuickMenu {

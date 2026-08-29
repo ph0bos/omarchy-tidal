@@ -73,6 +73,10 @@ Item {
 
   readonly property var navItems: Library.navigation()
 
+  // Filing a track away is the host's job -- the picker is raised over the
+  // whole card, not inside this pane.
+  signal addToPlaylist(string uri, string title)
+
   // Deep link, delivered as bound state rather than a method call so it cannot
   // race the Loader. The serial makes a repeat request of the same uri count.
   property string deepLinkUri: ""
@@ -825,6 +829,17 @@ Item {
     if (event.key === Qt.Key_Space) {
       if (root.svc) root.svc.playPause()
       event.accepted = true; return
+    }
+
+    // P for the row under the cursor, matching the quick menu's entry for
+    // whatever is playing.
+    if (event.key === Qt.Key_P) {
+      var chosen = root.currentRow()
+      if (chosen && chosen.type === "track") {
+        root.addToPlaylist(String(chosen.uri), String(chosen.name || ""))
+        event.accepted = true
+      }
+      return
     }
   }
 }

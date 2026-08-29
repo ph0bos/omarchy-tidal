@@ -717,6 +717,115 @@ class LibraryHandler(BaseHandler):
         })
 
 
+def _track_ids(uris) -> list[str]:
+    """Tidal wants ids, not uris, and both of mopidy-tidal's shapes end in one."""
+    out = []
+    for uri in uris or []:
+        parsed = images_mod.split(str(uri))
+        if parsed and parsed[0] == "track":
+            out.append(parsed[1])
+    return out
+
+
+class PlaylistsHandler(BaseHandler):
+    """The playlists this account can write to.
+
+    `session.user.playlists()` is the editable set -- what someone made
+    themselves -- as opposed to the favourites list, which includes other
+    people's and cannot be added to.
+    """
+
+    async def get(self) -> None:
+        session = self.session_or_503()
+        if session is None:
+            return
+
+        def work():
+            return list(session.user.playlists() or [])
+
+        try:
+            found = await self.run(work)
+        except Exception as exc:
+            logger.warning("omarchy-tidal: could not list playlists: %s", exc)
+            self.set_status(502)
+            self.write_json({"error": str(exc)})
+            return
+
+        items = []
+        for playlist in found:
+            payload = _item_payload(playlist)
+            if payload:
+                payload["num_tracks"] = getattr(playlist, "num_tracks", None)
+                items.append(payload)
+        self.write_json({"items": items})
+
+
+class PlaylistEditHandler(BaseHandler):
+    """Add to, remove from, and create playlists.
+
+    One handler for the three because they share the argument checking and the
+    "which playlist" lookup, and because they are the same request to the UI:
+    something happened to a playlist.
+    """
+
+    async def post(self) -> None:
+        body = self.body_json()
+        action = str(body.get("action") or "add")
+        session = self.session_or_503()
+        if session is None:
+            return
+
+        if action == "create":
+            name = str(body.get("name") or "").strip()
+            if not name:
+                self.set_status(400)
+                self.write_json({"error": "a playlist needs a name"})
+                return
+
+            def make():
+                created = session.user.create_playlist(name, str(body.get("description") or ""))
+                return {"uri": f"tidal:playlist:{created.id}", "name": created.name}
+
+            try:
+                self.write_json(await self.run(make))
+            except Exception as exc:
+                logger.warning("omarchy-tidal: could not create playlist: %s", exc)
+                self.set_status(502)
+                self.write_json({"error": str(exc)})
+            return
+
+        parsed = images_mod.split(str(body.get("playlist") or ""))
+        if parsed is None or parsed[0] != "playlist":
+            self.set_status(400)
+            self.write_json({"error": "expected a tidal:playlist: uri"})
+            return
+        playlist_id = parsed[1]
+
+        ids = _track_ids(body.get("uris"))
+        if not ids:
+            self.set_status(400)
+            self.write_json({"error": "expected one or more tidal:track: uris"})
+            return
+
+        def edit():
+            import tidalapi
+
+            playlist = tidalapi.playlist.UserPlaylist(session, playlist_id)
+            if action == "remove":
+                for media_id in ids:
+                    playlist.remove_by_id(media_id)
+                return {"removed": len(ids)}
+            playlist.add(ids)
+            return {"added": len(ids)}
+
+        try:
+            self.write_json(await self.run(edit))
+        except Exception as exc:
+            logger.warning("omarchy-tidal: playlist %s failed: %s", action, exc)
+            self.set_status(502)
+            self.write_json({"error": str(exc)})
+
+
 class EntityHandler(BaseHandler):
     """What a URI is: name, artist, year, art.
 
@@ -768,4 +877,6 @@ def factory(config, core):
         (r"/art", ArtHandler, kwargs),
         (r"/entity", EntityHandler, kwargs),
         (r"/library", LibraryHandler, kwargs),
+        (r"/playlists", PlaylistsHandler, kwargs),
+        (r"/playlist", PlaylistEditHandler, kwargs),
     ]

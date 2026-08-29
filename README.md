@@ -133,6 +133,16 @@ Time-synced and scrolling with playback; click any line to seek to it. `I` gives
 you the record instead — year, length, credits, editorial review, and exactly
 what is coming out of the speakers.
 
+### Playlists
+
+Press `P` on any track — in search results, in a library list, in the queue — and
+a picker asks which of your playlists it belongs in, with **New playlist** at the
+top for the ones that do not exist yet. The quick menu has the same entry for
+whatever is playing.
+
+Only playlists you made yourself are offered: the favourites list includes other
+people's, and adding to those fails at TIDAL's end rather than here.
+
 ### Mini player
 
 ![The mini player](docs/screenshots/mini.png)
@@ -170,7 +180,8 @@ queue · `→` open · `←`/`Backspace` back · `Tab` switch pane · `Space`
 play/pause · `Esc` close.
 
 In the queue, `Enter` jumps to that track rather than starting a new queue from
-it, `Delete` takes it out, and **Clear** in the header empties the lot.
+it, `Delete` takes it out, and **Clear** in the header empties the lot. `P` on
+any track asks which playlist to file it in.
 
 On Home the arrows walk the artwork grid — up and down between shelves, left and
 right along one — and `Enter` opens a card while `Shift+Enter` starts it, which

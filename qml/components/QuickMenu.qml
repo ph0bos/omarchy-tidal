@@ -32,6 +32,7 @@ Item {
       label: root.favorited ? "Remove favourite" : "Add to favourites",
       action: "favorite", state: "", enabled: root.isTidal },
     { glyph: "\uf012", label: "Start radio",     action: "radio",    state: "", enabled: root.isTidal },
+    { glyph: "\uf03a", label: "Add to playlist", action: "playlist", state: "", enabled: root.isTidal },
     { glyph: "",       label: "",                action: "sep",      state: "", enabled: true },
     { glyph: "\uf074", label: "Shuffle",         action: "shuffle",
       state: root.shuffled ? "on" : "off", enabled: true },
