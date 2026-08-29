@@ -10,6 +10,8 @@
 #   omarchy-tidal-setup login      run the TIDAL PKCE login
 #   omarchy-tidal-setup verify     confirm playback reaches hi-res
 #   omarchy-tidal-setup all        every step above, in order
+#   omarchy-tidal-setup uninstall  undo all of it (--purge also drops the
+#                                  TIDAL session and mopidy.conf)
 
 set -uo pipefail
 
@@ -492,6 +494,60 @@ cmd_backend() {
   fi
 }
 
+cmd_uninstall() {
+  local purge=0
+  [[ "${1:-}" == "--purge" ]] && purge=1
+
+  blue "stopping mopidy"
+  systemctl --user disable --now mopidy 2>/dev/null
+
+  # Only a unit this script wrote is a unit this script may remove; a packaged
+  # one belongs to pacman.
+  if [[ -f "$UNIT_DIR/mopidy.service" ]] \
+     && grep -q "Omarchy TIDAL plugin" "$UNIT_DIR/mopidy.service" 2>/dev/null; then
+    rm -f "$UNIT_DIR/mopidy.service"
+    systemctl --user daemon-reload
+    green "removed $UNIT_DIR/mopidy.service"
+  fi
+
+  local site
+  site=$(python3 -c 'import site,sys; sys.stdout.write(site.getusersitepackages())' 2>/dev/null)
+  if [[ -n "$site" && -d "$site/mopidy_omarchy_tidal" ]]; then
+    rm -rf "$site/mopidy_omarchy_tidal" "$site"/mopidy_omarchy_tidal-*.dist-info
+    green "removed the companion extension"
+  fi
+
+  local art="${XDG_CACHE_HOME:-$HOME/.cache}/omarchy-tidal"
+  if [[ -d "$art" ]]; then
+    rm -rf "$art"
+    green "removed the artwork cache"
+  fi
+
+  local rates="${XDG_CONFIG_HOME:-$HOME/.config}/pipewire/pipewire.conf.d/10-allowed-rates.conf"
+  if [[ -f "$rates" ]] && grep -q "omarchy-tidal" "$rates" 2>/dev/null; then
+    rm -f "$rates"
+    green "removed the PipeWire sample-rate drop-in"
+    warn "  reload it with: systemctl --user restart pipewire pipewire-pulse wireplumber"
+  fi
+
+  if (( purge )); then
+    # Signing out is not the same as uninstalling, so the session and the
+    # Mopidy config only go when they are asked for by name.
+    if [[ -f "$TIDAL_DATA_DIR/tidal-pkce.json" || -f "$TIDAL_DATA_DIR/tidal-oauth.json" ]]; then
+      rm -f "$TIDAL_DATA_DIR/tidal-pkce.json" "$TIDAL_DATA_DIR/tidal-oauth.json"
+      green "removed the saved TIDAL session"
+    fi
+    [[ -f "$MOPIDY_CONF" ]] && rm -f "$MOPIDY_CONF" && green "removed $MOPIDY_CONF"
+  else
+    blue "kept: $MOPIDY_CONF and the saved TIDAL session (--purge removes them)"
+  fi
+
+  # mopidy4, mopidy-tidal and the rest are ordinary packages someone else may
+  # be using; removing them is the package manager's business, not ours.
+  blue "packages installed by 'deps' were left alone"
+  green "done. Remove the plugin itself with: omarchy plugin remove quickshell.tidal"
+}
+
 cmd_all() {
   cmd_deps      || return 1
   cmd_configure || return 1
@@ -512,5 +568,6 @@ case "${1:-check}" in
   login)     cmd_login ;;
   verify)    cmd_verify ;;
   all)       cmd_all ;;
+  uninstall) cmd_uninstall "${2:-}" ;;
   *) echo "usage: $0 {check|deps|configure|service|audio|backend|login|verify|all}" >&2; exit 2 ;;
 esac

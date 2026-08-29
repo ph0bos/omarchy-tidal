@@ -58,6 +58,19 @@ Prefer to do it yourself:
 ./bin/omarchy-tidal-setup all
 ```
 
+## Removing it
+
+```bash
+omarchy-tidal-setup uninstall            # companion extension, service, art cache
+omarchy plugin remove quickshell.tidal   # the plugin itself
+```
+
+`uninstall` stops and removes the Mopidy user unit — but only if this script
+wrote it; a packaged one is left to your package manager. Your `mopidy.conf` and
+your saved TIDAL session stay put unless you add `--purge`, and packages
+installed by `deps` are never touched, since something else on the machine may
+be using them.
+
 ## Signing in
 
 TIDAL's PKCE flow redirects to `https://tidal.com/android/login/auth` — a remote
