@@ -40,7 +40,7 @@ Item {
   property var meta: null
 
   readonly property bool needsMeta: !root.isHeader && root.row
-    && !root.row.artist && !root.row.subtitle
+    && !root.row.complete && !root.row.artist && !root.row.subtitle
     && (root.rowType === "album" || root.rowType === "track"
         || root.rowType === "playlist" || root.rowType === "mix")
 

@@ -416,6 +416,9 @@ Item {
               num: modelData.track_num || 0,
               duration: modelData.duration || 0,
               type: "track",
+              // Everything this row shows is already decided here, so it must
+              // not go and fetch the artist back onto an artist's own page.
+              complete: true,
               header: false
             })
             playing: root.svc && Library.sameTrack(root.svc.trackUri, trackItem.modelData.uri)

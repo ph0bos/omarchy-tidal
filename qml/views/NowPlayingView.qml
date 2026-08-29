@@ -630,8 +630,17 @@ Item {
       id: tabIndicator
       // Bound through itemAt so the rule tracks the live geometry of the
       // active word rather than a width guessed from its character count.
-      readonly property var target: root.face === "lyrics" ? tabs.itemAt(1)
-        : (root.face === "info" ? tabs.itemAt(2) : tabs.itemAt(0))
+      readonly property var target: {
+        // itemAt() is a call, not a property, so this binding has to be told
+        // when the answer can change: on the face, and on the delegates coming
+        // into existence. Without the count the rule sat at zero width under
+        // the face the view opens on, and only appeared once you switched.
+        var ready = tabs.count
+        if (ready === 0) return null
+        if (root.face === "lyrics") return tabs.itemAt(1)
+        if (root.face === "info") return tabs.itemAt(2)
+        return tabs.itemAt(0)
+      }
 
       x: tabRow.x + (target ? target.x : 0)
       width: target ? target.width : 0
