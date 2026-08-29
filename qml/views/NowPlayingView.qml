@@ -20,6 +20,10 @@ Item {
   property string fontFamily: Style.font.menuFamily
   property bool visualizerEnabled: true
 
+  // Clicking the large artwork contracts back to the player -- the same
+  // gesture that expanded it, in reverse.
+  signal contract()
+
   readonly property var lyrics: svc ? svc.lyrics : null
   readonly property var synced: lyrics && lyrics.synced ? lyrics.synced : []
   readonly property string plain: lyrics && lyrics.plain ? String(lyrics.plain) : ""
@@ -64,11 +68,41 @@ Item {
       anchors.verticalCenter: parent.verticalCenter
       spacing: Style.space(16)
 
-      RoundedImage {
+      Item {
         width: parent.width
         height: width
-        radius: Style.space(6)
-        source: root.svc ? root.svc.artUrl : ""
+
+        RoundedImage {
+          anchors.fill: parent
+          radius: Style.space(6)
+          source: root.svc ? root.svc.artUrl : ""
+        }
+
+        Rectangle {
+          anchors.fill: parent
+          radius: Style.space(6)
+          color: "#000000"
+          opacity: artHover.containsMouse ? 0.35 : 0
+          Behavior on opacity { NumberAnimation { duration: 130 } }
+        }
+
+        Text {
+          anchors.centerIn: parent
+          text: "\uf066"
+          color: "#FFFFFF"
+          opacity: artHover.containsMouse ? 0.9 : 0
+          font.family: root.fontFamily
+          font.pixelSize: Style.font.heading
+          Behavior on opacity { NumberAnimation { duration: 130 } }
+        }
+
+        MouseArea {
+          id: artHover
+          anchors.fill: parent
+          hoverEnabled: true
+          cursorShape: Qt.PointingHandCursor
+          onClicked: root.contract()
+        }
       }
 
       Column {

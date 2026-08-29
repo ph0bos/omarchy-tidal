@@ -315,6 +315,7 @@ Item {
             pluginDir: root.pluginDir
             foreground: root.foreground
             fontFamily: root.fontFamily
+            onContract: root.currentView = "search"
           }
         }
 
@@ -331,6 +332,9 @@ Item {
           svc: root.svc
           foreground: root.foreground
           fontFamily: root.fontFamily
+          expanded: root.currentView === "nowPlaying"
+          onArtClicked: root.currentView =
+            root.currentView === "nowPlaying" ? "search" : "nowPlaying"
         }
 
         MouseArea {

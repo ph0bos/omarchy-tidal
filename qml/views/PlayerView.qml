@@ -268,7 +268,8 @@ Item {
           radius: Style.space(3)
           color: root.sidebarIndex === navRow.index && root.sidebarFocused
             ? Color.menu.selectedBackground
-            : (root.currentUri === navRow.modelData.uri ? Qt.rgba(Color.accent.r, Color.accent.g, Color.accent.b, 0.10) : "transparent")
+            : (root.detailUri === "" && root.currentUri === navRow.modelData.uri
+               ? Qt.rgba(Color.accent.r, Color.accent.g, Color.accent.b, 0.10) : "transparent")
 
           Row {
             anchors.verticalCenter: parent.verticalCenter
@@ -279,7 +280,7 @@ Item {
             Text {
               anchors.verticalCenter: parent.verticalCenter
               text: Library.glyph(navRow.modelData.icon)
-              color: root.currentUri === navRow.modelData.uri ? Color.accent : Color.muted
+              color: root.detailUri === "" && root.currentUri === navRow.modelData.uri ? Color.accent : Color.muted
               font.family: root.fontFamily
               font.pixelSize: Style.font.bodySmall
             }
@@ -287,7 +288,7 @@ Item {
             Text {
               anchors.verticalCenter: parent.verticalCenter
               text: navRow.modelData.label
-              color: root.currentUri === navRow.modelData.uri ? Color.accent : root.foreground
+              color: root.detailUri === "" && root.currentUri === navRow.modelData.uri ? Color.accent : root.foreground
               font.family: root.fontFamily
               font.pixelSize: Style.font.body
             }
@@ -376,6 +377,10 @@ Item {
       onOpenUri: function(uri, title) {
         root.pushHistory()
         root.showDetail(uri, title)
+      }
+
+      onTitleResolved: function(title) {
+        if (root.detailUri !== "") root.currentTitle = title
       }
     }
 
