@@ -103,7 +103,12 @@ jobs:
       # stripped glyph here instead of in a screenshot.
       - name: No empty glyph strings
         run: |
-          if grep -rnE '(glyph|text): *""' qml --include='*.qml' | grep -v 'action: "sep"'; then
+          # Only assignments in object literals and bindings count. A
+          # `property string glyph: ""` declaration is a default, not a
+          # stripped codepoint, and a separator entry is empty on purpose.
+          if grep -rnE '(glyph|text): *""' qml --include='*.qml' \
+               | grep -vE 'property +string +(glyph|text)' \
+               | grep -v 'action: "sep"'; then
             echo "::error::empty glyph string found - write Nerd Font glyphs as \\uXXXX escapes"
             exit 1
           fi

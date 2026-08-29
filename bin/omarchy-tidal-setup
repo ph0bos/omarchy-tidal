@@ -216,7 +216,8 @@ cmd_deps() {
 cmd_configure() {
   mkdir -p "$MOPIDY_CONF_DIR" "$STATE_DIR"
   if [[ -f "$MOPIDY_CONF" ]]; then
-    local backup="$MOPIDY_CONF.bak.$(date +%s)"
+    local backup
+    backup="$MOPIDY_CONF.bak.$(date +%s)"
     cp "$MOPIDY_CONF" "$backup"
     warn "existing config backed up to $backup"
   fi
