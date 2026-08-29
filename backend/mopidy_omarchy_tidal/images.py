@@ -21,10 +21,12 @@ import hashlib
 import os
 from pathlib import Path
 
-# Sleeves do not change, so a hit here saves a real API round trip for the rest
-# of the session. Cleared wholesale when full rather than evicted one at a
-# time: this is a convenience cache, not a working set worth ranking.
-_CACHE: dict[str, str | None] = {}
+# One Tidal object answers two questions -- what does this look like, and what
+# is it -- so both are cached together. An album's sleeve, artist and year do
+# not change, and resolving them is a real API round trip either way. Cleared
+# wholesale when full rather than evicted one at a time: this is a convenience
+# cache, not a working set worth ranking.
+_CACHE: dict[str, dict | None] = {}
 _CACHE_MAX = 4096
 
 
@@ -32,17 +34,17 @@ def cache_size() -> int:
     return len(_CACHE)
 
 
-def cached(uri: str) -> tuple[bool, str | None]:
-    """(hit, url). A cached None means "asked, and there is no art"."""
-    if uri in _CACHE:
-        return True, _CACHE[uri]
+def cached(key: str) -> tuple[bool, dict | None]:
+    """(hit, payload). A cached None means "asked, and there is nothing there"."""
+    if key in _CACHE:
+        return True, _CACHE[key]
     return False, None
 
 
-def remember(uri: str, url: str | None) -> None:
+def remember(key: str, payload: dict | None) -> None:
     if len(_CACHE) >= _CACHE_MAX:
         _CACHE.clear()
-    _CACHE[uri] = url
+    _CACHE[key] = payload
 
 
 def forget_all() -> None:
@@ -73,8 +75,32 @@ def _image(obj, size: int) -> str | None:
         return None
 
 
-def resolve(session, uri: str, size: int = 320) -> str | None:
-    """The cover art URL for one URI, or None when there is none to be had."""
+def _year(obj) -> int | None:
+    date = getattr(obj, "release_date", None) or getattr(obj, "year", None)
+    if date is None:
+        return None
+    try:
+        return int(str(getattr(date, "year", date))[:4])
+    except (TypeError, ValueError):
+        return None
+
+
+def _artist_name(obj) -> str:
+    artist = getattr(obj, "artist", None)
+    if artist is not None and getattr(artist, "name", None):
+        return str(artist.name)
+    artists = getattr(obj, "artists", None) or []
+    names = [str(a.name) for a in artists if getattr(a, "name", None)]
+    return ", ".join(names)
+
+
+def describe(session, uri: str, size: int = 320) -> dict | None:
+    """What a URI is, in the shape the UI's rows already use.
+
+    `browse()` returns refs carrying a name and a type and nothing else, so a
+    list of albums has no artist and no year to show. This fills that in from
+    the same object the artwork comes from -- one round trip answers both.
+    """
     parsed = split(uri)
     if parsed is None:
         return None
@@ -82,27 +108,77 @@ def resolve(session, uri: str, size: int = 320) -> str | None:
 
     try:
         if kind == "track":
-            # A track has no art of its own; the sleeve it came in does.
-            return _image(getattr(session.track(int(ident)), "album", None), size)
+            track = session.track(int(ident))
+            album = getattr(track, "album", None)
+            return {
+                "uri": uri,
+                "type": "track",
+                "name": getattr(track, "name", "") or "",
+                "artist": _artist_name(track),
+                "album": getattr(album, "name", "") or "" if album is not None else "",
+                "duration": getattr(track, "duration", None),
+                # A track has no art of its own; the sleeve it came in does.
+                "image": _image(album, size),
+                "hires": bool(getattr(track, "is_hi_res_lossless", False)),
+            }
         if kind == "album":
-            return _image(session.album(int(ident)), size)
+            album = session.album(int(ident))
+            return {
+                "uri": uri,
+                "type": "album",
+                "name": getattr(album, "name", "") or "",
+                "artist": _artist_name(album),
+                "year": _year(album),
+                "num_tracks": getattr(album, "num_tracks", None),
+                "image": _image(album, size),
+                "hires": "HIRES_LOSSLESS" in (getattr(album, "media_metadata_tags", None) or []),
+            }
         if kind == "artist":
-            return _image(session.artist(int(ident)), size)
-        # Playlists and mixes are keyed by uuid, not by a number.
+            artist = session.artist(int(ident))
+            return {
+                "uri": uri,
+                "type": "artist",
+                "name": getattr(artist, "name", "") or "",
+                "artist": "",
+                "image": _image(artist, size),
+            }
         if kind == "playlist":
-            return _image(session.playlist(ident), size)
+            # Playlists and mixes are keyed by uuid, not by a number.
+            playlist = session.playlist(ident)
+            creator = getattr(playlist, "creator", None)
+            return {
+                "uri": uri,
+                "type": "playlist",
+                "name": getattr(playlist, "name", "") or "",
+                "artist": str(getattr(creator, "name", "") or "") if creator else "",
+                "num_tracks": getattr(playlist, "num_tracks", None),
+                "image": _image(playlist, size),
+            }
         if kind == "mix":
-            return _image(session.mix(ident), size)
+            mix = session.mix(ident)
+            return {
+                "uri": uri,
+                "type": "mix",
+                "name": getattr(mix, "title", "") or getattr(mix, "name", "") or "",
+                "artist": getattr(mix, "sub_title", "") or "",
+                "image": _image(mix, size),
+            }
     except Exception:
         return None
     return None
 
 
+def resolve(session, uri: str, size: int = 320) -> str | None:
+    """The cover art URL for one URI, or None when there is none to be had."""
+    payload = describe(session, uri, size)
+    return (payload or {}).get("image")
+
+
 # ---------------------------------------------------------------- disk cache
 #
-# The URL cache above saves the round trip that *finds* a sleeve. This saves
-# the one that downloads it. Art is immutable and a library view can ask for a
-# hundred images in a scroll, so the bytes are kept on disk and every later
+# The cache above saves the round trip that *finds* a sleeve. This saves the one
+# that downloads it. Art is immutable and a library view can ask for a hundred
+# images in a single scroll, so the bytes are kept on disk and every later
 # request -- including after a shell restart, which empties Qt's own in-memory
 # pixmap cache -- is served locally.
 
@@ -141,9 +217,8 @@ def write_atomic(path: Path, payload: bytes) -> None:
 def prune(root: Path, max_bytes: int = DEFAULT_MAX_BYTES) -> int:
     """Drop the least recently used files until the cache fits. Returns bytes freed.
 
-    Least recently *used*, not written: the filesystem's atime is unreliable
-    (relatime, noatime), so reads touch mtime instead and this stays a plain
-    mtime sort.
+    Least recently *used*, not written: reads touch mtime below, because atime
+    is unreliable under relatime and absent under noatime.
     """
     if not root.exists():
         return 0

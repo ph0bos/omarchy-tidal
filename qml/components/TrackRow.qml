@@ -21,6 +21,9 @@ Item {
   property color accent: Color.accent
   property string fontFamily: Style.font.menuFamily
 
+  property bool alive: true
+  Component.onDestruction: root.alive = false
+
   signal activated()   // Enter        -> play now
   signal queued()      // Shift+Enter  -> append
   signal opened()      // Right arrow  -> descend
@@ -28,13 +31,35 @@ Item {
   readonly property bool isHeader: row ? row.header === true : false
   readonly property string rowType: row ? String(row.type || "") : ""
 
+  // What browse() left out.
+  //
+  // A browse ref is a name and a type: an album row in someone's library had
+  // no artist under it and no year. The companion knows both, off the same
+  // object it loaded to find the sleeve, so a row that has drawn its artwork
+  // gets this for nothing.
+  property var meta: null
+
+  readonly property bool needsMeta: !root.isHeader && root.row
+    && !root.row.artist && !root.row.subtitle
+    && (root.rowType === "album" || root.rowType === "track"
+        || root.rowType === "playlist" || root.rowType === "mix")
+
   // Falls back to the joined subtitle for rows that carry no split fields.
   readonly property string artistText: {
     if (!row) return ""
     if (row.artist) return String(row.artist)
+    if (root.meta && root.meta.artist) return String(root.meta.artist)
     return row.subtitle ? String(row.subtitle) : ""
   }
-  readonly property string albumText: row && row.album ? String(row.album) : ""
+  readonly property string albumText: {
+    if (root.row && root.row.album) return String(root.row.album)
+    // A record's year belongs where a track's album would go: it is the other
+    // thing you need to tell two pressings apart.
+    if (root.meta && root.meta.year && root.rowType === "album")
+      return String(root.meta.year)
+    if (root.meta && root.meta.album) return String(root.meta.album)
+    return ""
+  }
   readonly property bool hasMeta: artistText !== "" || albumText !== ""
 
   // Set on rows that come from a record rather than from a search: on an album
@@ -44,6 +69,31 @@ Item {
   // Rows that arrive from /home or /album carry an image url already; a browse
   // ref or a search result carries only a uri, and the companion resolves it.
   // Either way the bytes come through the local cache.
+  onRowChanged: {
+    // Delegates are recycled as the list scrolls, so a row object arriving
+    // here means this is now a different row.
+    root.meta = null
+    metaDelay.restart()
+  }
+
+  Timer {
+    id: metaDelay
+    // A flick past a thousand rows should not ask about every one of them.
+    // Only a row that stays put long enough to be read asks.
+    interval: 180
+    onTriggered: root.fetchMeta()
+  }
+
+  function fetchMeta() {
+    if (!root.alive || !root.needsMeta) return
+    var want = String(root.row.uri || "")
+    if (want === "") return
+    Tidal.entity(want, function(payload) {
+      if (!root.alive || !root.row || String(root.row.uri) !== want) return
+      root.meta = payload
+    }, function() { /* a row without a subtitle is still a usable row */ })
+  }
+
   readonly property string artSource: {
     if (!root.row || root.isHeader) return ""
     if (root.row.image) return Tidal.artProxy(String(root.row.image), 320)

@@ -112,6 +112,13 @@ function album(uri, onOk, onErr) {
 // -> { codec, bit_depth, sample_rate, quality, is_hires }
 function streamFormat(onOk, onErr) { _request("GET", "/format", null, onOk, onErr) }
 
+// What a uri actually is -- name, artist, year, art -- for rows that arrived
+// from browse() carrying nothing but a name.
+// -> { uri, type, name, artist, year, image, hires }
+function entity(uri, onOk, onErr) {
+  _request("GET", "/entity" + _q({ uri: uri }), null, onOk, onErr)
+}
+
 // ---- artwork ----------------------------------------------------------------
 //
 // Every image in the UI is fetched through the companion rather than straight

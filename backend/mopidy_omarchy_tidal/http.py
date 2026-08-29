@@ -85,6 +85,17 @@ class BaseHandler(tornado.web.RequestHandler):
     async def run(self, fn, *args):
         return await tornado.ioloop.IOLoop.current().run_in_executor(_EXECUTOR, fn, *args)
 
+    async def describe(self, session, uri: str, size: int = 320):
+        """What a Tidal URI is, cached. /art and /entity ask the same question."""
+        key = f"{uri}@{size}"
+        hit, payload = images_mod.cached(key)
+        if hit:
+            return payload
+        payload = await tornado.ioloop.IOLoop.current().run_in_executor(
+            _ART_EXECUTOR, images_mod.describe, session, uri, size)
+        images_mod.remember(key, payload)
+        return payload
+
     def body_json(self) -> dict:
         if not self.request.body:
             return {}
@@ -592,13 +603,8 @@ class ArtHandler(BaseHandler):
             session = self.session_or_503()
             if session is None:
                 return
-            hit, cached_url = images_mod.cached(key)
-            if hit:
-                url = cached_url or ""
-            else:
-                url = await tornado.ioloop.IOLoop.current().run_in_executor(
-                    _ART_EXECUTOR, images_mod.resolve, session, uri, size) or ""
-                images_mod.remember(key, url or None)
+            described = await self.describe(session, uri, size)
+            url = (described or {}).get("image") or ""
             if not url:
                 # No art exists for this entity. 404 rather than a placeholder:
                 # the UI already knows what to draw in its place.
@@ -642,6 +648,39 @@ class ArtHandler(BaseHandler):
             _ART_EXECUTOR, images_mod.prune, root, images_mod.DEFAULT_MAX_BYTES)
 
 
+class EntityHandler(BaseHandler):
+    """What a URI is: name, artist, year, art.
+
+    `browse()` answers with a name and a type and nothing else, so a row for an
+    album in someone's library had no artist to show under it. Rows ask here
+    for the rest, and because the answer is the same object the artwork came
+    from, a row that has already drawn its sleeve gets this for free.
+    """
+
+    async def get(self) -> None:
+        uri = self.get_argument("uri", "")
+        try:
+            size = max(80, min(1280, int(self.get_argument("size", "320"))))
+        except ValueError:
+            size = 320
+
+        if images_mod.split(uri) is None:
+            self.set_status(400)
+            self.write_json({"error": "expected a tidal: uri"})
+            return
+
+        session = self.session_or_503()
+        if session is None:
+            return
+
+        payload = await self.describe(session, uri, size)
+        if payload is None:
+            self.set_status(404)
+            self.write_json({"error": "nothing known about " + uri})
+            return
+        self.write_json(payload)
+
+
 def factory(config, core):
     """Build the request rules Mopidy mounts under /omarchy-tidal/."""
     provider = SessionProvider(config)
@@ -658,4 +697,5 @@ def factory(config, core):
         (r"/album", AlbumHandler, kwargs),
         (r"/format", FormatHandler, kwargs),
         (r"/art", ArtHandler, kwargs),
+        (r"/entity", EntityHandler, kwargs),
     ]
