@@ -10,7 +10,6 @@ import os
 from pathlib import Path
 
 import pytest
-
 from _backend import load
 
 images = load("images")
@@ -116,7 +115,7 @@ def test_cache_remembers_a_miss_as_well_as_a_hit():
     assert images.cached("k") == (True, {"name": "x"})
 
 
-def test_cache_dir_follows_xdg(tmp_path):
+def test_cache_dir_follows_xdg():
     assert images.cache_dir({"XDG_CACHE_HOME": "/x"}) == Path("/x/omarchy-tidal/art")
     assert images.cache_dir({"HOME": "/home/who"}) == Path("/home/who/.cache/omarchy-tidal/art")
 
