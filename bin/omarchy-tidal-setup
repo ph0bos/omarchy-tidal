@@ -1,0 +1,515 @@
+#!/bin/bash
+# Setup and diagnostics for the Omarchy TIDAL plugin.
+#
+#   omarchy-tidal-setup check      report what is missing
+#   omarchy-tidal-setup deps       install the backend packages
+#   omarchy-tidal-setup configure  write ~/.config/mopidy/mopidy.conf
+#   omarchy-tidal-setup service    install + start the systemd --user unit
+#   omarchy-tidal-setup audio      let PipeWire follow the source sample rate
+#   omarchy-tidal-setup backend    build + install the companion extension
+#   omarchy-tidal-setup login      run the TIDAL PKCE login
+#   omarchy-tidal-setup verify     confirm playback reaches hi-res
+#   omarchy-tidal-setup all        every step above, in order
+
+set -uo pipefail
+
+MOPIDY_CONF_DIR="${XDG_CONFIG_HOME:-$HOME/.config}/mopidy"
+MOPIDY_CONF="$MOPIDY_CONF_DIR/mopidy.conf"
+STATE_DIR="${XDG_STATE_HOME:-$HOME/.local/state}/omarchy-tidal"
+# mopidy-tidal writes its saved session into the extension DATA dir
+# (Extension.get_data_dir -> $XDG_DATA_DIR/mopidy/tidal), not the config dir.
+TIDAL_DATA_DIR="${XDG_DATA_HOME:-$HOME/.local/share}/mopidy/tidal"
+UNIT_DIR="${XDG_CONFIG_HOME:-$HOME/.config}/systemd/user"
+LOGIN_PORT=8989
+HTTP_PORT=6680
+
+# python-setuptools-scm is not a runtime dependency of anything here. The AUR
+# mopidy-mpris PKGBUILD omits it from makedepends, so its wheel build fails with
+# "Missing dependencies: setuptools-scm>=8.2" unless it is already present.
+REPO_PKGS=(python-tidalapi gst-plugins-bad playerctl python-setuptools-scm)
+
+# Mopidy itself comes from the AUR, not extra. extra/mopidy is 4.0.0a2, a
+# PRE-RELEASE, and mopidy-mpris requires "mopidy>=4.0.0" which a4.0.0a2 does not
+# satisfy. On the alpha, mopidy-mpris dies at import with
+#   ImportError: cannot import name 'CoreEvent' from 'mopidy.core'
+# and MPRIS never registers -- which would break the bar widget, the media keys,
+# and the OSD, since all of them read playback state over MPRIS.
+AUR_PKGS=(mopidy4 python-mopidy-tidal-git mopidy-mpris)
+
+# aur/mopidy4 declares conflicts=(mopidy), and `yay --noconfirm` answers NO to
+# "Remove mopidy?", so the transaction aborts. Replace it explicitly instead.
+MOPIDY_PROVIDER="mopidy4"
+
+red()   { printf '\033[31m%s\033[0m\n' "$*"; }
+green() { printf '\033[32m%s\033[0m\n' "$*"; }
+blue()  { printf '\033[34m%s\033[0m\n' "$*"; }
+warn()  { printf '\033[33m%s\033[0m\n' "$*"; }
+
+have_pkg() { pacman -Q "$1" &>/dev/null; }
+
+# True once anything providing a usable mopidy>=4.0.0 is installed.
+have_mopidy4() {
+  pacman -Q "$MOPIDY_PROVIDER" &>/dev/null && return 0
+  local v
+  v=$(pacman -Q mopidy 2>/dev/null | awk '{print $2}')
+  [[ -n "$v" && "$v" != *a* ]]
+}
+
+# Privilege escalation that works both in a real terminal and when this script
+# is driven by an agent or a GUI action.
+#
+#   passwordless sudo -> use it
+#   interactive tty   -> sudo, which can prompt normally
+#   no tty            -> pkexec, which raises the graphical polkit dialog
+#
+# Without the pkexec fallback `sudo pacman` just dies with
+# "a terminal is required to read the password".
+PRIV=""
+detect_priv() {
+  if sudo -n true 2>/dev/null; then PRIV="sudo"
+  elif [[ -t 0 && -t 1 ]]; then PRIV="sudo"
+  elif command -v pkexec >/dev/null 2>&1; then PRIV="pkexec"
+  else PRIV=""
+  fi
+}
+
+run_priv() {
+  [[ -n "$PRIV" ]] || detect_priv
+  if [[ -z "$PRIV" ]]; then
+    red "No way to gain privileges: no passwordless sudo, no terminal, no pkexec."
+    red "Run this script from a real terminal window instead."
+    return 1
+  fi
+  if [[ "$PRIV" == "pkexec" ]]; then
+    warn "Requesting privileges via polkit - watch for the password dialog."
+  fi
+  "$PRIV" "$@"
+}
+
+missing_pkgs() {
+  local out=()
+  for p in "${REPO_PKGS[@]}" "${AUR_PKGS[@]}"; do
+    have_pkg "$p" || out+=("$p")
+  done
+  printf '%s\n' "${out[@]}"
+}
+
+cmd_check() {
+  local ok=0
+  blue "== packages =="
+  for p in "${REPO_PKGS[@]}" "${AUR_PKGS[@]}"; do
+    if [[ "$p" == "$MOPIDY_PROVIDER" ]]; then
+      if have_mopidy4; then green "  ok       $p"; else red "  MISSING  $p (need mopidy >= 4.0.0, not the 4.0.0aN pre-release)"; ok=1; fi
+      continue
+    fi
+    if have_pkg "$p"; then green "  ok       $p"; else red "  MISSING  $p"; ok=1; fi
+  done
+
+  blue "== config =="
+  if [[ -f "$MOPIDY_CONF" ]]; then
+    green "  ok       $MOPIDY_CONF"
+    local q
+    q=$(sed -n 's/^[[:space:]]*quality[[:space:]]*=[[:space:]]*//p' "$MOPIDY_CONF" | head -1)
+    if [[ "$q" == "HI_RES_LOSSLESS" ]]; then
+      green "  ok       quality = HI_RES_LOSSLESS"
+    else
+      red "  WRONG    quality = ${q:-unset} (want HI_RES_LOSSLESS)"; ok=1
+    fi
+  else
+    red "  MISSING  $MOPIDY_CONF"; ok=1
+  fi
+
+  blue "== service =="
+  if systemctl --user is-active --quiet mopidy; then
+    green "  ok       mopidy running"
+  else
+    red "  STOPPED  mopidy not running"; ok=1
+  fi
+
+  blue "== http api =="
+  if curl -sf -m 3 -X POST "http://127.0.0.1:$HTTP_PORT/mopidy/rpc" \
+       -H 'Content-Type: application/json' \
+       -d '{"jsonrpc":"2.0","id":1,"method":"core.get_version"}' >/dev/null 2>&1; then
+    green "  ok       JSON-RPC reachable on :$HTTP_PORT"
+  else
+    red "  DOWN     JSON-RPC not reachable on :$HTTP_PORT"; ok=1
+  fi
+
+  blue "== companion extension =="
+  if curl -sf -m 5 "http://127.0.0.1:$HTTP_PORT/omarchy-tidal/health" >/dev/null 2>&1; then
+    green "  ok       /omarchy-tidal/health responding"
+  else
+    red "  MISSING  companion extension not loaded (run: $0 backend)"; ok=1
+  fi
+
+  blue "== tidal session =="
+  if [[ -f "$TIDAL_DATA_DIR/tidal-pkce.json" || -f "$TIDAL_DATA_DIR/tidal-oauth.json" ]]; then
+    green "  ok       saved TIDAL session found"
+  else
+    warn "  NONE     not logged in yet (run: $0 login)"; ok=1
+  fi
+
+  blue "== mpris =="
+  if command -v playerctl >/dev/null && playerctl -l 2>/dev/null | grep -q mopidy; then
+    green "  ok       org.mpris.MediaPlayer2.mopidy present"
+  else
+    red "  MISSING  mopidy MPRIS interface not on the bus"; ok=1
+    if journalctl --user -u mopidy -n 200 --no-pager 2>/dev/null | grep -q "cannot import name 'CoreEvent'"; then
+      red "           cause: mopidy-mpris needs mopidy >= 4.0.0; the installed"
+      red "           mopidy is the 4.0.0aN pre-release. Install $MOPIDY_PROVIDER."
+    fi
+  fi
+
+  return $ok
+}
+
+cmd_deps() {
+  local repo_missing=() aur_missing=()
+  for p in "${REPO_PKGS[@]}"; do have_pkg "$p" || repo_missing+=("$p"); done
+  for p in "${AUR_PKGS[@]}"; do have_pkg "$p" || aur_missing+=("$p"); done
+
+  if (( ${#repo_missing[@]} == 0 && ${#aur_missing[@]} == 0 )); then
+    green "dependencies already present"
+    return 0
+  fi
+
+  detect_priv
+  [[ -n "$PRIV" ]] || { run_priv true; return 1; }
+
+  if (( ${#repo_missing[@]} )); then
+    blue "installing from repos: ${repo_missing[*]}"
+    run_priv pacman -S --noconfirm --needed "${repo_missing[@]}" \
+      || { red "repo install failed"; return 1; }
+  fi
+
+  # extra/mopidy blocks aur/mopidy4. Remove it first, skipping dependency
+  # checks: python-mopidy-tidal-git depends on "mopidy", which mopidy4 satisfies
+  # through provides=mopidy once it lands moments later.
+  if [[ " ${aur_missing[*]} " == *" $MOPIDY_PROVIDER "* ]] && pacman -Q mopidy &>/dev/null; then
+    warn "removing extra/mopidy (pre-release) to make way for $MOPIDY_PROVIDER"
+    systemctl --user stop mopidy 2>/dev/null
+    run_priv pacman -Rdd --noconfirm mopidy || { red "could not remove extra/mopidy"; return 1; }
+  fi
+
+  if (( ${#aur_missing[@]} )); then
+    blue "installing from AUR: ${aur_missing[*]}"
+    warn "AUR packages are built from source - this can take several minutes."
+    # yay must run unprivileged (it refuses to build as root) but shells out for
+    # the install step, so it needs to be told which escalation helper to use.
+    local yay_args=(-S --noconfirm --needed)
+    [[ "$PRIV" == "pkexec" ]] && yay_args+=(--sudo pkexec)
+    yay "${yay_args[@]}" "${aur_missing[@]}" || { red "AUR install failed"; return 1; }
+  fi
+
+  local still=()
+  for p in "${REPO_PKGS[@]}" "${AUR_PKGS[@]}"; do
+    [[ "$p" == "$MOPIDY_PROVIDER" ]] && { have_mopidy4 || still+=("$p"); continue; }
+    have_pkg "$p" || still+=("$p")
+  done
+  if (( ${#still[@]} )); then
+    red "still missing after install: ${still[*]}"
+    return 1
+  fi
+  green "dependencies present"
+}
+
+cmd_configure() {
+  mkdir -p "$MOPIDY_CONF_DIR" "$STATE_DIR"
+  if [[ -f "$MOPIDY_CONF" ]]; then
+    local backup="$MOPIDY_CONF.bak.$(date +%s)"
+    cp "$MOPIDY_CONF" "$backup"
+    warn "existing config backed up to $backup"
+  fi
+  cat > "$MOPIDY_CONF" <<CONF
+# Managed by the Omarchy TIDAL plugin (omarchy-tidal-setup configure).
+# A previous config, if any, was backed up alongside this file.
+
+[core]
+cache_dir = \$XDG_CACHE_DIR/mopidy
+config_dir = \$XDG_CONFIG_DIR/mopidy
+data_dir = \$XDG_DATA_DIR/mopidy
+restore_state = true
+
+[logging]
+verbosity = 0
+
+[audio]
+# Route through PipeWire so Omarchy volume keys, the audio panel, and
+# per-app mixing keep working.
+output = pipewiresink
+
+[http]
+enabled = true
+hostname = 127.0.0.1
+port = $HTTP_PORT
+
+[mpris]
+enabled = true
+
+[tidal]
+enabled = true
+quality = HI_RES_LOSSLESS
+auth_method = PKCE
+login_server_port = $LOGIN_PORT
+# HACK (what AUTO aliases to) keeps mopidy responsive while unauthenticated and
+# surfaces the login through the web auth server on login_server_port.
+# It implies lazy = true.
+lazy = true
+login_method = HACK
+
+[file]
+enabled = false
+
+
+[m3u]
+enabled = false
+
+[stream]
+enabled = false
+
+[softwaremixer]
+enabled = true
+CONF
+  green "wrote $MOPIDY_CONF"
+}
+
+cmd_service() {
+  if [[ -f /usr/lib/systemd/user/mopidy.service ]]; then
+    blue "using packaged systemd unit"
+  else
+    mkdir -p "$UNIT_DIR"
+    cat > "$UNIT_DIR/mopidy.service" <<UNIT
+[Unit]
+Description=Mopidy music server (Omarchy TIDAL plugin)
+After=network.target sound.target
+
+[Service]
+Type=simple
+ExecStart=/usr/bin/mopidy
+Restart=on-failure
+RestartSec=5
+
+[Install]
+WantedBy=default.target
+UNIT
+    green "wrote $UNIT_DIR/mopidy.service"
+    systemctl --user daemon-reload
+  fi
+  systemctl --user enable --now mopidy || { red "could not start mopidy"; return 1; }
+  sleep 2
+  systemctl --user is-active --quiet mopidy \
+    && green "mopidy running" \
+    || { red "mopidy failed to start; see: journalctl --user -u mopidy -n 50"; return 1; }
+}
+
+cmd_login() {
+  systemctl --user is-active --quiet mopidy || { red "mopidy is not running (run: $0 service)"; return 1; }
+  blue "Starting TIDAL PKCE login."
+  echo
+  echo "  1. A browser will open at http://localhost:$LOGIN_PORT"
+  echo "  2. Follow the link to TIDAL and sign in"
+  echo "  3. Copy the FULL redirect URL from the address bar after login"
+  echo "  4. Paste it back into the form on the localhost page"
+  echo
+  # Nudge mopidy-tidal into starting its auth server by asking it to browse.
+  curl -sf -m 5 -X POST "http://127.0.0.1:$HTTP_PORT/mopidy/rpc" \
+    -H 'Content-Type: application/json' \
+    -d '{"jsonrpc":"2.0","id":1,"method":"core.library.browse","params":{"uri":"tidal:directory"}}' \
+    >/dev/null 2>&1
+  sleep 2
+  if command -v omarchy-launch-browser >/dev/null; then
+    omarchy-launch-browser "http://localhost:$LOGIN_PORT" &
+  else
+    xdg-open "http://localhost:$LOGIN_PORT" &
+  fi
+  echo "Press Enter once the browser reports a successful login..."
+  read -r _
+  if [[ -f "$TIDAL_DATA_DIR/tidal-pkce.json" || -f "$TIDAL_DATA_DIR/tidal-oauth.json" ]]; then
+    green "TIDAL session saved"
+  else
+    warn "no session file yet - check: journalctl --user -u mopidy -n 50"
+  fi
+}
+
+cmd_verify() {
+  blue "== searching TIDAL for a known hi-res track =="
+  local res
+  res=$(curl -sf -m 20 -X POST "http://127.0.0.1:$HTTP_PORT/mopidy/rpc" \
+    -H 'Content-Type: application/json' \
+    -d '{"jsonrpc":"2.0","id":1,"method":"core.library.search","params":{"query":{"any":["Rumours Fleetwood Mac"]}}}')
+  if [[ -z "$res" ]]; then red "search failed - is mopidy running and logged in?"; return 1; fi
+  echo "$res" | head -c 400; echo
+
+  local uri
+  uri=$(printf '%s' "$res" | python3 -c '
+import sys, json
+try:
+    d = json.load(sys.stdin)
+except Exception:
+    sys.exit(0)
+for r in d.get("result", []):
+    for t in r.get("tracks", []) or []:
+        print(t["uri"]); sys.exit(0)
+')
+  if [[ -z "$uri" ]]; then red "no track found in search results"; return 1; fi
+  green "playing $uri"
+
+  curl -sf -m 10 -X POST "http://127.0.0.1:$HTTP_PORT/mopidy/rpc" -H 'Content-Type: application/json' \
+    -d '{"jsonrpc":"2.0","id":1,"method":"core.tracklist.clear"}' >/dev/null
+  curl -sf -m 20 -X POST "http://127.0.0.1:$HTTP_PORT/mopidy/rpc" -H 'Content-Type: application/json' \
+    -d "{\"jsonrpc\":\"2.0\",\"id\":2,\"method\":\"core.tracklist.add\",\"params\":{\"uris\":[\"$uri\"]}}" >/dev/null
+  curl -sf -m 20 -X POST "http://127.0.0.1:$HTTP_PORT/mopidy/rpc" -H 'Content-Type: application/json' \
+    -d '{"jsonrpc":"2.0","id":3,"method":"core.playback.play"}' >/dev/null
+  sleep 6
+
+  blue "== MPRIS =="
+  playerctl -p mopidy metadata 2>/dev/null || warn "no MPRIS metadata"
+
+  blue "== negotiated PipeWire stream rate =="
+  # Mopidy is a Python process, so its PipeWire node is named "python3.N", not
+  # "mopidy". Match on media.class instead and read the negotiated Format param,
+  # which is the authoritative decoded rate/bit-depth.
+  if command -v pw-dump >/dev/null; then
+    pw-dump 2>/dev/null | python3 -c '
+import sys, json
+try:
+    data = json.load(sys.stdin)
+except Exception:
+    sys.exit(0)
+streams = []
+for n in data:
+    if n.get("type") != "PipeWire:Interface:Node":
+        continue
+    info = n.get("info") or {}
+    props = info.get("props") or {}
+    if props.get("media.class") != "Stream/Output/Audio":
+        continue
+    for f in (info.get("params") or {}).get("Format", []):
+        if "rate" in f:
+            streams.append((props.get("node.name"), f.get("rate"), f.get("format")))
+if not streams:
+    print("  no active playback stream on the graph (is it still playing?)")
+for name, rate, fmt in streams:
+    print("  stream %s: rate=%s format=%s" % (name, rate, fmt))
+'
+  else
+    warn "pw-dump not available"
+  fi
+
+  blue "== PipeWire graph clock =="
+  local allowed rate
+  allowed=$(pw-metadata -n settings 2>/dev/null | sed -n "s/.*clock.allowed-rates' value:'\(.*\)' type.*/\1/p")
+  rate=$(pw-metadata -n settings 2>/dev/null | sed -n "s/.*clock.rate' value:'\([0-9]*\)' type.*/\1/p")
+  echo "  graph rate    : ${rate:-unknown}"
+  echo "  allowed rates : ${allowed:-unknown}"
+
+  # A stream decoded at 88.2/96/176.4/192k is resampled if the graph cannot run
+  # at that rate. The decode stays lossless; the rate conversion does not.
+  if [[ -n "$allowed" && "$allowed" != *88200* && "$allowed" != *96000* ]]; then
+    warn ""
+    warn "  PipeWire is locked to ${allowed}. Hi-res streams will be RESAMPLED."
+    warn "  To let the graph follow the source rate, write:"
+    warn "    ~/.config/pipewire/pipewire.conf.d/10-allowed-rates.conf"
+    warn "  containing:"
+    warn "    context.properties = {"
+    warn "      default.clock.allowed-rates = [ 44100 48000 88200 96000 176400 192000 ]"
+    warn "    }"
+    warn "  then: systemctl --user restart pipewire pipewire-pulse wireplumber"
+  fi
+}
+
+cmd_audio() {
+  local dir="${XDG_CONFIG_HOME:-$HOME/.config}/pipewire/pipewire.conf.d"
+  local file="$dir/10-allowed-rates.conf"
+  mkdir -p "$dir"
+  cat > "$file" <<'CONF'
+# Let the PipeWire graph follow the source sample rate instead of resampling
+# everything to 48 kHz. Written by the Omarchy TIDAL plugin.
+#
+# TIDAL hi-res is 24-bit at 88.2/96/176.4/192 kHz. With the stock
+# allowed-rates = [ 48000 ], every one of those is sample-rate converted before
+# it reaches the DAC. Listing the rates here lets PipeWire switch the graph to
+# match whatever is playing, so hi-res passes through untouched.
+#
+# PipeWire only switches while the graph is otherwise idle, so this is safe with
+# other applications running. Delete this file and restart PipeWire to revert.
+context.properties = {
+    default.clock.allowed-rates = [ 44100 48000 88200 96000 176400 192000 ]
+}
+CONF
+  green "wrote $file"
+  systemctl --user restart pipewire pipewire-pulse wireplumber 2>/dev/null
+  sleep 3
+  systemctl --user restart mopidy 2>/dev/null
+  green "PipeWire restarted"
+  warn "Your OUTPUT still has the final say. A display over HDMI/DisplayPort"
+  warn "often advertises only 44100/48000/96000/192000 and rejects 88200 and"
+  warn "176400, so 88.2 kHz albums are resampled to 96 kHz no matter what."
+  warn "Check yours with:  cat /proc/asound/card*/eld#* | grep sad0_rates"
+}
+
+cmd_backend() {
+  local repo_root src
+  repo_root="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
+  src="$repo_root/backend"
+  [[ -d "$src" ]] || { red "backend source not found at $src"; return 1; }
+
+  blue "building the companion Mopidy extension"
+  # Arch ships no pip and marks the interpreter externally-managed, but
+  # python-build and python-installer are already present as AUR build deps.
+  python3 -c "import build, installer" 2>/dev/null || {
+    red "python-build and python-installer are required"
+    red "install them with: omarchy pkg add python-build python-installer"
+    return 1
+  }
+
+  ( cd "$src" && rm -rf dist build ./*.egg-info \
+      && python3 -m build --wheel --no-isolation >/dev/null 2>&1 ) \
+    || { red "wheel build failed"; return 1; }
+
+  local wheel
+  wheel=$(ls -1 "$src"/dist/*.whl 2>/dev/null | head -1)
+  [[ -n "$wheel" ]] || { red "no wheel produced"; return 1; }
+
+  # python-installer refuses to overwrite, so clear any previous copy first.
+  local site
+  site=$(python3 -c 'import site,sys; sys.stdout.write(site.getusersitepackages())' 2>/dev/null)
+  if [[ -n "$site" ]]; then
+    rm -rf "$site/mopidy_omarchy_tidal" "$site"/mopidy_omarchy_tidal-*.dist-info
+  fi
+
+  python3 -m installer --destdir=/ --prefix="$HOME/.local" "$wheel" \
+    || { red "wheel install failed"; return 1; }
+
+  green "installed $(basename "$wheel")"
+  systemctl --user restart mopidy 2>/dev/null
+  sleep 3
+  if curl -sf -m 10 "http://127.0.0.1:$HTTP_PORT/omarchy-tidal/health" >/dev/null 2>&1; then
+    green "companion extension responding"
+  else
+    warn "companion extension not responding yet; check: journalctl --user -u mopidy -n 40"
+  fi
+}
+
+cmd_all() {
+  cmd_deps      || return 1
+  cmd_configure || return 1
+  cmd_service   || return 1
+  cmd_audio
+  cmd_backend   || return 1
+  cmd_login     || return 1
+  cmd_verify
+}
+
+case "${1:-check}" in
+  check)     cmd_check ;;
+  deps)      cmd_deps ;;
+  configure) cmd_configure ;;
+  service)   cmd_service ;;
+  audio)     cmd_audio ;;
+  backend)   cmd_backend ;;
+  login)     cmd_login ;;
+  verify)    cmd_verify ;;
+  all)       cmd_all ;;
+  *) echo "usage: $0 {check|deps|configure|service|audio|backend|login|verify|all}" >&2; exit 2 ;;
+esac

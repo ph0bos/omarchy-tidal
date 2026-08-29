@@ -1,0 +1,26 @@
+[build-system]
+requires = ["setuptools>=64"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "mopidy-omarchy-tidal"
+version = "0.1.0"
+description = "Lyrics, discovery, favourites and stream-format endpoints for the Omarchy Tidal plugin"
+readme = "README.md"
+requires-python = ">=3.12"
+license = { text = "MIT" }
+dependencies = [
+    "Mopidy >= 4.0.0",
+    "Mopidy-Tidal >= 0.3.10",
+    "tidalapi >= 0.8.10",
+    "requests >= 2.28",
+]
+
+[project.entry-points."mopidy.ext"]
+omarchy_tidal = "mopidy_omarchy_tidal:Extension"
+
+[tool.setuptools]
+packages = ["mopidy_omarchy_tidal"]
+
+[tool.setuptools.package-data]
+mopidy_omarchy_tidal = ["ext.conf"]

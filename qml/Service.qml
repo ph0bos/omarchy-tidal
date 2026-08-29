@@ -1,0 +1,349 @@
+import QtQuick
+import Quickshell.Io
+import Quickshell.Services.Mpris
+import "lib/MopidyRpc.js" as Rpc
+import "lib/TidalApi.js" as Tidal
+
+// Headless singleton for the Tidal plugin.
+//
+// This is the single source of truth every other surface reads from. It does
+// two things the rest of the plugin depends on:
+//
+//   1. Binds to Mopidy's MPRIS interface for reactive playback state. MPRIS is
+//      push-based over D-Bus, so track/art/play-state updates cost nothing and
+//      arrive instantly -- no polling, no WebSocket dependency.
+//   2. Exposes an IpcHandler on target "tidal" so keybindings and menu entries
+//      are just `omarchy-shell tidal <action>`.
+//
+// Commands that MPRIS cannot express (search, queue manipulation, browsing) go
+// out over Mopidy's HTTP JSON-RPC via MopidyRpc.js. Tidal-specific extras
+// (lyrics, favorites, radio, stream format) go to our companion extension via
+// TidalApi.js and degrade quietly when it is not installed.
+
+Item {
+  id: root
+
+  // Injected by the shell host.
+  property var shell: null
+  property var manifest: null
+  property string omarchyPath: ""
+
+  readonly property string pluginId: "quickshell.tidal"
+
+  // Saving any file under ~/.config/omarchy/plugins/ hot-reloads plugin code,
+  // which destroys this object while HTTP callbacks and the poll timer may
+  // still be in flight. A callback that then writes a property is a
+  // use-after-free, and Quickshell turns that into a fatal abort -- taking the
+  // whole shell down with it. Everything async below bails out once this flips.
+  property bool alive: true
+
+  Component.onDestruction: {
+    root.alive = false
+    probeTimer.running = false
+    positionTimer.running = false
+  }
+
+  // ---- MPRIS binding -------------------------------------------------------
+
+  readonly property var players: Mpris.players ? Mpris.players.values : []
+
+  // Always track Mopidy specifically. Taking whatever player happens to be
+  // "active" would make the widget flip to Firefox or mpv mid-song.
+  readonly property var player: {
+    for (var i = 0; i < players.length; i++) {
+      var p = players[i]
+      if (!p) continue
+      var bus = String(p.dbusName || "")
+      var id = String(p.identity || "")
+      if (bus.indexOf("mopidy") !== -1 || id.toLowerCase() === "mopidy") return p
+    }
+    return null
+  }
+
+  readonly property bool connected: player !== null
+  readonly property bool playing: player ? !!player.isPlaying : false
+  readonly property string title: player ? (player.trackTitle || "") : ""
+  readonly property string artist: player ? (player.trackArtist || "") : ""
+  readonly property string album: player ? (player.trackAlbum || "") : ""
+  readonly property string artUrl: player ? (player.trackArtUrl || "") : ""
+  // MPRIS only emits a position change on an explicit seek -- it never ticks.
+  // Reading player.position costs a D-Bus round trip, so the timeline is run
+  // from a local clock and re-synced against the player periodically. Without
+  // this the seek bar sits at 0:00 for the whole track.
+  property real position: 0
+  property int positionTicks: 0
+
+  function syncPosition() {
+    if (player && player.positionSupported) root.position = player.position
+  }
+
+  Timer {
+    id: positionTimer
+    running: root.playing && root.hasTrack
+    interval: 500
+    repeat: true
+    onTriggered: {
+      if (!root.alive) return
+      root.position += 0.5
+      root.positionTicks += 1
+      // Re-anchor every 5s so local drift and outside seeks both get corrected.
+      if (root.positionTicks % 10 === 0) root.syncPosition()
+    }
+  }
+
+  onPlayingChanged: if (root.alive) root.syncPosition()
+  readonly property real length: player && player.lengthSupported ? player.length : 0
+  readonly property bool hasTrack: connected && (title !== "" || artist !== "")
+
+  // Mopidy publishes the backend URI (e.g. "tidal:track:12345") as xesam:url.
+  // Favorites, lyrics, and radio all key off this.
+  readonly property string trackUri: {
+    if (!player || !player.metadata) return ""
+    var m = player.metadata
+    return String(m["xesam:url"] || "")
+  }
+  readonly property bool isTidalTrack: trackUri.indexOf("tidal:") === 0
+
+  // ---- backend health ------------------------------------------------------
+
+  // Drives the setup wizard. "unknown" until the first probe answers so the
+  // bar widget does not flash a "not set up" state on shell start.
+  property string backendState: "unknown"   // unknown | down | up
+  property bool companionAvailable: false
+  // Distinct from companionAvailable: the extension can be loaded and running
+  // while no Tidal session exists yet. The wizard needs to tell those apart.
+  property bool signedIn: false
+  property string lastError: ""
+
+  function probeBackend() {
+    Rpc.ping(function() {
+      if (!root.alive) return
+      root.backendState = "up"
+      Tidal.health(function(info) {
+        if (!root.alive) return
+        root.companionAvailable = true
+        root.signedIn = !!(info && info.logged_in)
+      }, function() {
+        if (!root.alive) return
+        root.companionAvailable = false
+        root.signedIn = false
+      })
+    }, function(err) {
+      if (!root.alive) return
+      root.backendState = "down"
+      root.companionAvailable = false
+      root.signedIn = false
+      root.lastError = err
+    })
+  }
+
+  // Slow heartbeat only. Real playback state comes from MPRIS, so this exists
+  // purely to notice mopidy starting or dying.
+  Timer {
+    id: probeTimer
+    interval: root.backendState === "up" ? 30000 : 5000
+    running: true
+    repeat: true
+    triggeredOnStart: true
+    onTriggered: { if (root.alive) root.probeBackend() }
+  }
+
+  // ---- stream quality ------------------------------------------------------
+
+  property var format: null           // { codec, bit_depth, sample_rate, is_hires }
+  readonly property string qualityLabel: {
+    if (!format) return ""
+    var bits = format.bit_depth
+    var rate = format.sample_rate
+    if (!bits || !rate) return String(format.codec || "").toUpperCase()
+    var khz = (rate / 1000)
+    khz = (khz % 1 === 0) ? khz.toFixed(0) : khz.toFixed(1)
+    return String(format.codec || "FLAC").toUpperCase() + " " + bits + "/" + khz
+  }
+  readonly property bool isHiRes: format ? !!format.is_hires : false
+
+  function refreshFormat() {
+    if (!companionAvailable) { root.format = null; return }
+    Tidal.streamFormat(function(f) { if (root.alive) root.format = f },
+                       function() { if (root.alive) root.format = null })
+  }
+
+  // Everything Tidal-specific about the current track: format, heart state,
+  // lyrics. Called on a track change and again whenever the companion becomes
+  // reachable.
+  function refreshTrackDetail() {
+    Qt.callLater(root.refreshFormat)
+    Qt.callLater(root.refreshFavorite)
+    Qt.callLater(root.refreshLyrics)
+  }
+
+  onTrackUriChanged: {
+    root.position = 0
+    root.positionTicks = 0
+    Qt.callLater(root.syncPosition)
+    root.favorite = false
+    root.format = null
+    root.lyrics = null
+    root.refreshTrackDetail()
+  }
+
+  // A shell restart or plugin reload lands mid-playback: the track never
+  // "changes", so onTrackUriChanged never fires and the quality badge would
+  // stay blank for the rest of the track. Re-fetch once the companion answers.
+  onCompanionAvailableChanged: {
+    if (root.companionAvailable && root.trackUri !== "") root.refreshTrackDetail()
+  }
+
+  // ---- favorites -----------------------------------------------------------
+
+  property bool favorite: false
+
+  function refreshFavorite() {
+    if (!companionAvailable || !isTidalTrack) return
+    Tidal.isFavorite(trackUri, function(r) { if (root.alive) root.favorite = !!(r && r.favorite) },
+                     function() {})
+  }
+
+  function toggleFavorite() {
+    if (!isTidalTrack) { osd("No TIDAL track playing", "media"); return false }
+    if (!companionAvailable) { osd("TIDAL companion not installed", "media"); return false }
+    var next = !favorite
+    Tidal.setFavorite(trackUri, next, function() {
+      if (!root.alive) return
+      root.favorite = next
+      root.osd(next ? "Added to favorites" : "Removed from favorites",
+               next ? "heart" : "heart-outline")
+    }, function(err) {
+      if (!root.alive) return
+      root.osd("Could not update favorites", "media")
+      root.lastError = err
+    })
+    return true
+  }
+
+  // ---- lyrics --------------------------------------------------------------
+
+  property var lyrics: null           // { synced: [{time_ms, text}], plain, source }
+
+  function refreshLyrics() {
+    if (!companionAvailable || !isTidalTrack) return
+    var forUri = trackUri
+    Tidal.lyrics(forUri, function(l) {
+      // Drop late responses for a track we have already moved past.
+      if (!root.alive || forUri !== root.trackUri) return
+      root.lyrics = l
+    }, function() {
+      if (!root.alive || forUri !== root.trackUri) return
+      root.lyrics = null
+    })
+  }
+
+  // ---- radio ---------------------------------------------------------------
+
+  function startRadio() {
+    if (!isTidalTrack) { osd("No TIDAL track playing", "media"); return false }
+    if (!companionAvailable) { osd("TIDAL companion not installed", "media"); return false }
+    Tidal.radio(trackUri, function(r) {
+      if (!root.alive) return
+      var uris = (r && r.uris) || []
+      if (!uris.length) { root.osd("No radio available", "media"); return }
+      Rpc.playNow(uris, function() { if (root.alive) root.osd("Radio started", "media-play") },
+                  function(err) { if (root.alive) root.lastError = err })
+    }, function(err) {
+      if (!root.alive) return
+      root.osd("Could not start radio", "media")
+      root.lastError = err
+    })
+    return true
+  }
+
+  // ---- transport -----------------------------------------------------------
+  //
+  // Prefer MPRIS: it is already connected and avoids an HTTP round trip.
+  // Fall back to JSON-RPC when the player is not exported yet.
+
+  function playPause() {
+    if (player && player.canTogglePlaying) { player.togglePlaying(); return true }
+    Rpc.getState(function(state) {
+      if (!root.alive) return
+      if (state === "playing") Rpc.pause(); else Rpc.play()
+    }, function(err) { if (root.alive) root.lastError = err })
+    return true
+  }
+
+  function next() {
+    if (player && player.canGoNext) { player.next(); return true }
+    Rpc.next(null, function(err) { if (root.alive) root.lastError = err })
+    return true
+  }
+
+  function previous() {
+    if (player && player.canGoPrevious) { player.previous(); return true }
+    Rpc.previous(null, function(err) { if (root.alive) root.lastError = err })
+    return true
+  }
+
+  function seekTo(ms) {
+    // Move the local clock immediately so the bar responds without waiting for
+    // the round trip, then confirm against the player.
+    root.position = ms / 1000
+    Rpc.seek(ms, function() {
+      if (root.alive) Qt.callLater(root.syncPosition)
+    }, function(err) { if (root.alive) root.lastError = err })
+  }
+
+  // ---- surfaces ------------------------------------------------------------
+
+  function openView(view) {
+    if (!shell) return false
+    return shell.summon(pluginId, JSON.stringify({ view: view })) === true
+  }
+
+  function osd(message, icon) {
+    if (!shell) return
+    shell.summon("omarchy.osd", JSON.stringify({
+      icon: icon || "media",
+      message: message
+    }))
+  }
+
+  function statusJson() {
+    return JSON.stringify({
+      connected: root.connected,
+      backend: root.backendState,
+      companion: root.companionAvailable,
+      signedIn: root.signedIn,
+      playing: root.playing,
+      title: root.title,
+      artist: root.artist,
+      album: root.album,
+      uri: root.trackUri,
+      favorite: root.favorite,
+      quality: root.qualityLabel,
+      hiRes: root.isHiRes,
+      position: root.position,
+      length: root.length
+    })
+  }
+
+  // ---- IPC -----------------------------------------------------------------
+  //
+  // Every keybinding and menu entry routes through here:
+  //   omarchy-shell tidal overlay | nowPlaying | favorite | radio | ...
+
+  IpcHandler {
+    target: "tidal"
+
+    function status(): string { return root.statusJson() }
+    function overlay(): string { return root.openView("search") ? "ok" : "unhandled" }
+    function search(): string { return root.openView("search") ? "ok" : "unhandled" }
+    function nowPlaying(): string { return root.openView("nowPlaying") ? "ok" : "unhandled" }
+    function setup(): string { return root.openView("setup") ? "ok" : "unhandled" }
+    function favorite(): string { return root.toggleFavorite() ? "ok" : "unhandled" }
+    function radio(): string { return root.startRadio() ? "ok" : "unhandled" }
+    function playPause(): string { return root.playPause() ? "ok" : "unhandled" }
+    function next(): string { return root.next() ? "ok" : "unhandled" }
+    function previous(): string { return root.previous() ? "ok" : "unhandled" }
+    function ping(): string { return "ok" }
+  }
+}

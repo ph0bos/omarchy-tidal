@@ -1,0 +1,259 @@
+#!/usr/bin/env python3
+"""TIDAL sign-in for the Omarchy TIDAL plugin.
+
+Why this exists rather than using mopidy-tidal's own login server:
+
+TIDAL's PKCE flow redirects to `https://tidal.com/android/login/auth`, a remote
+URL. No local server can receive that callback, which is why every Linux TIDAL
+client ends up asking the user to copy the address bar and paste it into a form.
+
+So instead of a form, this watches the clipboard. The user signs in, presses
+Ctrl+L Ctrl+C, and sign-in completes on its own. A handoff file is also polled
+so the shell can hand over a pasted URL without a terminal.
+
+The resulting session is written to mopidy-tidal's own session path, so that
+extension picks it up with no second login of its own.
+
+Output is line-oriented for the QML wizard to parse:
+
+    URL <login-url>     the address to open
+    WAITING             now polling clipboard + handoff file
+    OK <user-id>        signed in, session saved
+    FAIL <reason>       gave up
+"""
+
+from __future__ import annotations
+
+import argparse
+import json
+import os
+import re
+import subprocess
+import sys
+import time
+from pathlib import Path
+
+try:
+    import tidalapi
+    from tidalapi import Quality
+except ImportError:
+    print("FAIL tidalapi is not installed", flush=True)
+    sys.exit(1)
+
+# Matches the address TIDAL lands on after a successful sign-in.
+REDIRECT_RE = re.compile(r"https://tidal\.com/android/login/auth\S*[?&]code=\S+")
+
+POLL_SECONDS = 0.5
+
+
+def session_path() -> Path:
+    data_home = os.environ.get("XDG_DATA_HOME") or (Path.home() / ".local/share")
+    return Path(data_home) / "mopidy" / "tidal" / "tidal-pkce.json"
+
+
+def emit(line: str) -> None:
+    print(line, flush=True)
+
+
+# The QML wizard reads this rather than parsing stdout: a file survives a plugin
+# hot-reload mid-login, and it is the same handoff idiom Omarchy's image picker
+# uses. Written atomically so a half-written file is never observed.
+_STATUS_FILE: Path | None = None
+
+
+def set_status(state: str, **extra) -> None:
+    if _STATUS_FILE is None:
+        return
+    payload = {"state": state, "ts": time.time(), **extra}
+    tmp = _STATUS_FILE.with_suffix(".tmp")
+    try:
+        _STATUS_FILE.parent.mkdir(parents=True, exist_ok=True)
+        tmp.write_text(json.dumps(payload))
+        tmp.replace(_STATUS_FILE)
+    except OSError:
+        pass
+
+
+def read_clipboard() -> str:
+    try:
+        out = subprocess.run(
+            ["wl-paste", "--no-newline"],
+            capture_output=True, timeout=3, check=False,
+        )
+        return out.stdout.decode("utf-8", "ignore")
+    except (OSError, subprocess.SubprocessError):
+        return ""
+
+
+def find_redirect(text: str) -> str | None:
+    if not text:
+        return None
+    match = REDIRECT_RE.search(text.strip())
+    return match.group(0) if match else None
+
+
+def new_session() -> tidalapi.Session:
+    # hi_res_lossless is what the whole plugin exists for; the token has to be
+    # minted against it or the session comes back capped.
+    return tidalapi.Session(tidalapi.Config(quality=Quality.hi_res_lossless))
+
+
+def cmd_status(_args) -> int:
+    path = session_path()
+    payload = {"logged_in": False, "session_file": str(path), "user_id": None}
+    if path.is_file():
+        session = new_session()
+        try:
+            if session.load_session_from_file(path) and session.check_login():
+                payload["logged_in"] = True
+                payload["user_id"] = getattr(getattr(session, "user", None), "id", None)
+        except Exception as exc:  # noqa: BLE001 - status must never raise
+            payload["error"] = str(exc)
+    print(json.dumps(payload))
+    return 0
+
+
+def cmd_logout(_args) -> int:
+    path = session_path()
+    if path.is_file():
+        path.unlink()
+        emit(f"OK removed {path}")
+    else:
+        emit("OK nothing to remove")
+    return 0
+
+
+def restart_mopidy() -> None:
+    subprocess.run(
+        ["systemctl", "--user", "restart", "mopidy"],
+        capture_output=True, check=False, timeout=30,
+    )
+
+
+def cmd_login(args) -> int:
+    global _STATUS_FILE
+    if args.status_file:
+        _STATUS_FILE = Path(args.status_file)
+    set_status("starting")
+
+    session = new_session()
+
+    try:
+        login_url = session.pkce_login_url()
+    except Exception as exc:  # noqa: BLE001
+        emit(f"FAIL could not build a login url: {exc}")
+        set_status("fail", message="could not build a login url")
+        return 1
+
+    emit(f"URL {login_url}")
+    set_status("url", url=login_url)
+
+    if args.print_url:
+        return 0
+
+    handoff = Path(args.handoff) if args.handoff else None
+    if handoff and handoff.exists():
+        handoff.unlink()
+
+    if args.open:
+        opener = "omarchy-launch-browser"
+        if not shutil_which(opener):
+            opener = "xdg-open"
+        subprocess.Popen(
+            [opener, login_url],
+            stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL, start_new_session=True,
+        )
+
+    emit("WAITING")
+    set_status("waiting", url=login_url)
+
+    # Ignore whatever happened to be on the clipboard before we started, so a
+    # stale redirect from an earlier attempt cannot complete this one.
+    seen_before = find_redirect(read_clipboard())
+    deadline = time.monotonic() + args.timeout
+    redirect = None
+
+    while time.monotonic() < deadline:
+        if handoff and handoff.is_file():
+            candidate = find_redirect(handoff.read_text(errors="ignore"))
+            if candidate:
+                redirect = candidate
+                break
+
+        candidate = find_redirect(read_clipboard())
+        if candidate and candidate != seen_before:
+            redirect = candidate
+            break
+
+        time.sleep(POLL_SECONDS)
+
+    if redirect is None:
+        emit("FAIL timed out waiting for the redirect url")
+        set_status("fail", message="timed out waiting for the redirect url")
+        return 1
+
+    try:
+        token = session.pkce_get_auth_token(redirect)
+        session.process_auth_token(token, is_pkce_token=True)
+    except Exception as exc:  # noqa: BLE001
+        emit(f"FAIL could not exchange the authorization code: {exc}")
+        set_status("fail", message="TIDAL rejected the authorization code")
+        return 1
+
+    if not session.check_login():
+        emit("FAIL TIDAL rejected the session")
+        set_status("fail", message="TIDAL rejected the session")
+        return 1
+
+    path = session_path()
+    path.parent.mkdir(parents=True, exist_ok=True)
+    try:
+        session.save_session_to_file(path)
+    except Exception as exc:  # noqa: BLE001
+        emit(f"FAIL could not save the session: {exc}")
+        set_status("fail", message="could not save the session")
+        return 1
+
+    # mopidy-tidal reads its session once, at backend startup.
+    if not args.no_restart:
+        restart_mopidy()
+
+    if handoff and handoff.exists():
+        handoff.unlink()
+
+    user_id = getattr(getattr(session, "user", None), "id", "")
+    emit(f"OK {user_id}")
+    set_status("ok", user_id=user_id)
+    return 0
+
+
+def shutil_which(name: str) -> str | None:
+    from shutil import which
+    return which(name)
+
+
+def main() -> int:
+    parser = argparse.ArgumentParser(description="TIDAL sign-in for Omarchy TIDAL")
+    sub = parser.add_subparsers(dest="command")
+
+    login = sub.add_parser("login", help="run the PKCE sign-in flow")
+    login.add_argument("--open", action="store_true", help="open the login url in a browser")
+    login.add_argument("--print-url", action="store_true", help="print the url and exit")
+    login.add_argument("--handoff", help="file to watch for a pasted redirect url")
+    login.add_argument("--timeout", type=int, default=300, help="seconds to wait (default 300)")
+    login.add_argument("--no-restart", action="store_true", help="do not restart mopidy afterwards")
+    login.add_argument("--status-file", help="JSON file the wizard polls for progress")
+    login.set_defaults(func=cmd_login)
+
+    sub.add_parser("status", help="report sign-in state as JSON").set_defaults(func=cmd_status)
+    sub.add_parser("logout", help="remove the saved session").set_defaults(func=cmd_logout)
+
+    args = parser.parse_args()
+    if not getattr(args, "func", None):
+        parser.print_help()
+        return 2
+    return args.func(args)
+
+
+if __name__ == "__main__":
+    sys.exit(main())

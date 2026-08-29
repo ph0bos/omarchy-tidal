@@ -1,0 +1,12 @@
+<!-- Crest - the Omarchy Tidal plugin mark.
+     Level-meter bars whose tops trace a breaking wave.
+     Drawn in currentColor so it inherits the active Omarchy theme.
+     32x32 grid with a 3.2 stroke: every line lands on a whole pixel at 16px. -->
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 32 32" width="32" height="32"
+     fill="none" stroke="currentColor" stroke-width="3.2" stroke-linecap="round">
+  <path d="M4 18V27"/>
+  <path d="M10 10V27"/>
+  <path d="M16 5V27"/>
+  <path d="M22 9V27"/>
+  <path d="M28 15V27"/>
+</svg>
