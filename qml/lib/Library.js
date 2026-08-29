@@ -182,10 +182,11 @@ function withoutHeaders(rows) {
 }
 
 // The sidebar. Mopidy exposes the whole Tidal tree through browse(), so these
-// are just browse targets -- no special-casing anywhere in the UI.
+// are just browse targets -- no special-casing anywhere in the UI. Search is
+// not among them: it has its own field in the page header, and a nav row that
+// only moved focus into that field was a second door onto the same room.
 function navigation() {
   return [
-    { label: "Search",      uri: "",                  icon: "search" },
     { label: "Home",        uri: "tidal:home",        icon: "home" },
     { label: "For You",     uri: "tidal:for_you",     icon: "star" },
     { label: "Hi-Res",      uri: "tidal:hires",       icon: "hires" },

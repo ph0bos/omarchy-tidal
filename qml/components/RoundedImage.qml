@@ -16,6 +16,9 @@ Item {
 
   property string source: ""
   property real radius: 4
+  // 0 = sharp. The now-playing backdrop turns this up so the sleeve behind the
+  // page reads as its colour rather than as a second, competing picture.
+  property real blur: 0
   property color placeholderColor: Qt.rgba(Color.muted.r, Color.muted.g, Color.muted.b, 0.12)
   property int fillMode: Image.PreserveAspectCrop
 
@@ -43,6 +46,9 @@ Item {
       maskSource: mask
       maskThresholdMin: 0.5
       maskSpreadAtMin: 0.1
+      blurEnabled: root.blur > 0
+      blur: root.blur
+      blurMax: 48
     }
 
     Rectangle {

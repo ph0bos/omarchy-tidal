@@ -1,5 +1,6 @@
 import QtQuick
 import qs.Commons
+import "../lib/Design.js" as Design
 
 // Transport strip along the bottom of the player.
 //
@@ -31,17 +32,13 @@ Item {
   // which direction it is currently pointing.
   property bool expanded: false
   signal artClicked()
+  // The title and the artist are links: everywhere else in the player a name
+  // is a way into its page, and the transport strip was the one surface where
+  // it was only text.
+  signal openUri(string uri, string title)
 
   implicitHeight: Style.space(64)
   height: implicitHeight
-
-  function formatTime(seconds) {
-    if (!seconds || seconds < 0 || !isFinite(seconds)) return "0:00"
-    var total = Math.floor(seconds)
-    var m = Math.floor(total / 60)
-    var s = total % 60
-    return m + ":" + (s < 10 ? "0" + s : s)
-  }
 
   // While the playhead is held, `position` follows the pointer locally and no
   // seek is sent. One seek goes out on release. Sending a seek per mouse-move
@@ -127,22 +124,46 @@ Item {
       spacing: 2
 
       Text {
+        id: barTitle
         width: parent.width
         text: root.hasTrack ? root.svc.title : "Nothing playing"
         elide: Text.ElideRight
-        color: root.foreground
+        color: titleLink.containsMouse ? Color.accent : root.foreground
         font.family: root.fontFamily
         font.pixelSize: Style.font.body
+
+        Behavior on color { ColorAnimation { duration: 110 } }
+
+        MouseArea {
+          id: titleLink
+          anchors.fill: parent
+          hoverEnabled: true
+          enabled: root.svc && root.svc.albumUri !== ""
+          cursorShape: Qt.PointingHandCursor
+          onClicked: root.openUri(root.svc.albumUri, root.svc.album)
+        }
       }
 
       Text {
+        id: barArtist
         width: parent.width
         visible: root.hasTrack
         text: root.svc ? root.svc.artist : ""
         elide: Text.ElideRight
-        color: Color.muted
+        color: artistLink.containsMouse ? Color.accent : Color.muted
         font.family: root.fontFamily
         font.pixelSize: Style.font.caption
+
+        Behavior on color { ColorAnimation { duration: 110 } }
+
+        MouseArea {
+          id: artistLink
+          anchors.fill: parent
+          hoverEnabled: true
+          enabled: root.svc && root.svc.artistUri !== ""
+          cursorShape: Qt.PointingHandCursor
+          onClicked: root.openUri(root.svc.artistUri, root.svc.artist)
+        }
       }
     }
   }
@@ -249,7 +270,7 @@ Item {
       anchors.left: parent.left
       anchors.verticalCenter: parent.verticalCenter
       width: Style.space(34)
-      text: root.formatTime(root.position)
+      text: Design.clock(root.position)
       color: Color.muted
       font.family: root.fontFamily
       font.pixelSize: Style.font.caption
@@ -261,7 +282,7 @@ Item {
       anchors.right: parent.right
       anchors.verticalCenter: parent.verticalCenter
       width: Style.space(34)
-      text: root.formatTime(root.length)
+      text: Design.clock(root.length)
       color: Color.muted
       font.family: root.fontFamily
       font.pixelSize: Style.font.caption

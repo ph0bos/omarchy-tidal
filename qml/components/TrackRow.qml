@@ -1,6 +1,7 @@
 import QtQuick
 import qs.Commons
 import "../lib/Library.js" as Library
+import "../lib/Design.js" as Design
 
 // One row in the player's lists: a track, album, artist, playlist, or a folder
 // to descend into. Also used for the queue and for detail pages, which is why
@@ -35,7 +36,16 @@ Item {
   readonly property string albumText: row && row.album ? String(row.album) : ""
   readonly property bool hasMeta: artistText !== "" || albumText !== ""
 
-  implicitHeight: isHeader ? Style.space(30) : Style.space(38)
+  // Set on rows that come from a record rather than from a search: on an album
+  // page the position and the running time are what you want in the margins,
+  // and repeating the album name down every row says nothing.
+  readonly property string numberText: row && row.num ? String(row.num) : ""
+  readonly property string durationText: row && row.duration ? Design.clock(row.duration) : ""
+
+  // A row with an artist and album under the title needs two lines of room; a
+  // numbered album track is one line and should not sit in a 38px gap.
+  implicitHeight: isHeader ? Style.space(30)
+                  : (hasMeta ? Style.space(38) : Style.space(30))
 
   Text {
     visible: root.isHeader
@@ -64,10 +74,25 @@ Item {
       anchors.leftMargin: Style.space(8)
       anchors.verticalCenter: parent.verticalCenter
       width: Style.space(16)
-      text: root.playing ? "\uf028" : Library.typeGlyph(root.rowType)
+      horizontalAlignment: Text.AlignHCenter
+      text: root.playing ? "\uf028"
+            : (root.numberText !== "" ? root.numberText : Library.typeGlyph(root.rowType))
       color: root.playing ? root.accent : Color.muted
       font.family: root.fontFamily
-      font.pixelSize: Style.font.bodySmall
+      font.pixelSize: root.numberText !== "" && !root.playing
+                      ? Style.font.caption : Style.font.bodySmall
+    }
+
+    Text {
+      id: durationLabel
+      anchors.right: chevron.visible ? chevron.left : parent.right
+      anchors.rightMargin: Style.space(10)
+      anchors.verticalCenter: parent.verticalCenter
+      visible: root.durationText !== ""
+      text: root.durationText
+      color: Color.muted
+      font.family: root.fontFamily
+      font.pixelSize: Style.font.caption
     }
 
     Text {
@@ -86,7 +111,8 @@ Item {
     Column {
       anchors.left: typeIcon.right
       anchors.leftMargin: Style.space(10)
-      anchors.right: chevron.visible ? chevron.left : parent.right
+      anchors.right: durationLabel.visible ? durationLabel.left
+                     : (chevron.visible ? chevron.left : parent.right)
       anchors.rightMargin: Style.space(10)
       anchors.verticalCenter: parent.verticalCenter
       spacing: 2

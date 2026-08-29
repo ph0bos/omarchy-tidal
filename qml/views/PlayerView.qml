@@ -4,6 +4,7 @@ import qs.Ui
 import "../components"
 import "../lib/MopidyRpc.js" as Rpc
 import "../lib/Library.js" as Library
+import "../lib/Design.js" as Design
 
 // The full player: sidebar, browsable content, search, and transport.
 //
@@ -34,7 +35,7 @@ Item {
   property string currentTitle: "Home"
   property bool loading: false
   property string errorText: ""
-  property int sidebarIndex: 1
+  property int sidebarIndex: 0
   property bool sidebarFocused: false
 
   // Breadcrumb of {uri, title} so Left/Backspace can walk back out.
@@ -44,6 +45,13 @@ Item {
   // list. Albums and artists have art, bios, reviews and credits worth showing;
   // a flat track list throws all of that away.
   property string detailUri: ""
+
+  // Home is the personalised shelf page, not a browse target -- unless the
+  // companion cannot answer, in which case we fall back to browsing
+  // tidal:home and the folder list it returns.
+  property bool homeFallback: false
+  readonly property bool homeActive: root.currentUri === "tidal:home"
+    && root.detailUri === "" && !root.homeFallback
 
   readonly property var navItems: Library.navigation()
 
@@ -74,6 +82,18 @@ Item {
     root.detailUri = ""
     if (uri === "queue") { loadQueue(); return }
     if (uri === "") { focusSearch(); return }
+
+    // The shelf page owns tidal:home. Browsing it as well would spend a round
+    // trip on a folder list nobody is going to see.
+    if (uri === "tidal:home" && !root.homeFallback) {
+      root.currentUri = uri
+      root.currentTitle = title || "Home"
+      root.rows = []
+      root.selectedIndex = 0
+      root.loading = false
+      root.errorText = ""
+      return
+    }
 
     root.currentUri = uri
     root.currentTitle = title || uri
@@ -196,6 +216,28 @@ Item {
     root.openTarget(row.uri, row.name)
   }
 
+  // A Home card carries the same shapes the rest of the player deals in, so
+  // opening one lands in the page it deserves: albums and artists have real
+  // pages, everything else is a browse target, and a track just plays.
+  function openEntry(entry) {
+    if (!entry || !entry.uri) return
+    var uri = String(entry.uri)
+    var type = String(entry.type || "")
+    if (type === "track") { root.playEntry(entry); return }
+    root.pushHistory()
+    if (type === "album" || type === "artist") {
+      root.showDetail(uri, String(entry.name || ""))
+      return
+    }
+    root.openTarget(uri, String(entry.name || uri))
+  }
+
+  function playEntry(entry) {
+    if (!entry || !entry.uri) return
+    Rpc.playNow([String(entry.uri)], null,
+                function(err) { if (root.alive) root.errorText = err })
+  }
+
   function pushHistory() {
     var next = root.history.slice()
     next.push({ uri: root.currentUri, title: root.currentTitle,
@@ -247,7 +289,7 @@ Item {
     anchors.left: parent.left
     anchors.top: parent.top
     anchors.bottom: parent.bottom
-    width: Style.space(168)
+    width: Style.space(150)
     color: "transparent"
 
     Column {
@@ -320,99 +362,172 @@ Item {
   Item {
     id: content
     anchors.left: sidebar.right
-    anchors.leftMargin: Style.space(12)
+    anchors.leftMargin: Style.space(16)
     anchors.right: parent.right
     anchors.top: parent.top
     anchors.bottom: parent.bottom
 
-    TextField {
-      id: searchField
+    // ---- page header ----
+    //
+    // Where you are on the left, the way out on the right. The old layout
+    // stacked a full-width empty input above a whispered breadcrumb, which
+    // put the least interesting thing on the page in the most prominent
+    // position. Search is a tool here, not the subject.
+    Item {
+      id: pageHeader
       anchors.top: parent.top
-      anchors.left: parent.left
-      anchors.right: parent.right
-      anchors.topMargin: Style.space(4)
-      foreground: root.foreground
-      accent: Color.accent
-      onAccepted: {
-        root.history = []
-        root.runSearch(text)
-        listView.forceActiveFocus()
-      }
-    }
-
-    Text {
-      id: crumb
-      anchors.top: searchField.bottom
-      anchors.topMargin: Style.space(10)
-      anchors.left: parent.left
-      text: root.loading ? "Loading…" : root.currentTitle
-      color: Color.muted
-      font.family: root.fontFamily
-      font.pixelSize: Style.font.caption
-      font.letterSpacing: 1.1
-    }
-
-    Text {
-      anchors.centerIn: parent
-      visible: root.errorText !== "" && !root.loading && root.detailUri === ""
-      text: root.errorText
-      color: Color.muted
-      font.family: root.fontFamily
-      font.pixelSize: Style.font.body
-    }
-
-    DetailView {
-      id: detail
-      anchors.top: crumb.bottom
-      anchors.topMargin: Style.space(8)
-      anchors.left: parent.left
-      anchors.right: parent.right
-      anchors.bottom: parent.bottom
-      visible: root.detailUri !== ""
-      svc: root.svc
-      uri: root.detailUri
-      foreground: root.foreground
-      fontFamily: root.fontFamily
-
-      onOpenUri: function(uri, title) {
-        root.pushHistory()
-        root.showDetail(uri, title)
-      }
-
-      onTitleResolved: function(title) {
-        if (root.detailUri !== "") root.currentTitle = title
-      }
-    }
-
-    ListView {
-      id: listView
-      visible: root.detailUri === ""
-      anchors.top: crumb.bottom
       anchors.topMargin: Style.space(6)
       anchors.left: parent.left
       anchors.right: parent.right
-      anchors.bottom: parent.bottom
-      clip: true
-      model: root.rows
-      currentIndex: root.selectedIndex
-      boundsBehavior: Flickable.StopAtBounds
+      height: Style.space(30)
 
-      delegate: TrackRow {
-        required property int index
-        required property var modelData
+      Text {
+        anchors.left: parent.left
+        anchors.right: searchField.left
+        anchors.rightMargin: Style.space(16)
+        anchors.verticalCenter: parent.verticalCenter
+        // A detail page carries its own name at display size a few pixels
+        // below this; printing it twice made the header look like a mistake.
+        visible: root.detailUri === ""
+        text: root.currentTitle
+        elide: Text.ElideRight
+        color: root.foreground
+        font.family: root.fontFamily
+        font.pixelSize: Style.font.heading
+        font.weight: Font.DemiBold
+        // Dimmed rather than replaced with the word "Loading": the title is
+        // still true while the page underneath it is arriving.
+        opacity: root.loading ? 0.4 : 1
+        Behavior on opacity { NumberAnimation { duration: Design.base } }
+      }
 
-        width: listView.width
-        row: modelData
-        selected: index === root.selectedIndex && !root.sidebarFocused
-        playing: root.svc && modelData && !modelData.header
-                 && Library.sameTrack(root.svc.trackUri, modelData.uri)
+      TextField {
+        id: searchField
+        anchors.right: parent.right
+        anchors.verticalCenter: parent.verticalCenter
+        width: Math.min(Style.space(220), parent.width * 0.42)
+        verticalPadding: Style.space(4)
+        leftPadding: Style.space(26)
+        placeholderText: "Search"
+        font.pixelSize: Style.font.bodySmall
         foreground: root.foreground
         accent: Color.accent
+        onAccepted: {
+          root.history = []
+          root.runSearch(text)
+          listView.forceActiveFocus()
+        }
+      }
+
+      Text {
+        // Inside the field rather than beside it, so the control reads as one
+        // object instead of an icon that happens to sit next to a box.
+        x: searchField.x + Style.space(9)
+        anchors.verticalCenter: searchField.verticalCenter
+        text: "\uf002"
+        color: searchField.activeFocus ? Color.accent : Color.muted
+        font.family: root.fontFamily
+        font.pixelSize: Style.font.caption
+        Behavior on color { ColorAnimation { duration: Design.fast } }
+      }
+    }
+
+    // ---- body ----
+    //
+    // Three faces of the same pane -- shelves, a detail page, a list -- that
+    // cross-fade rather than cut. Each stays loaded so going back does not
+    // re-fetch what was already on screen.
+    Item {
+      id: body
+      anchors.top: pageHeader.bottom
+      anchors.topMargin: Style.space(16)
+      anchors.left: parent.left
+      anchors.right: parent.right
+      anchors.bottom: parent.bottom
+
+      HomeView {
+        id: homePage
+        anchors.fill: parent
+        opacity: root.homeActive ? 1 : 0
+        visible: opacity > 0.01
+        svc: root.svc
+        foreground: root.foreground
         fontFamily: root.fontFamily
 
-        onActivated: { root.selectedIndex = index; root.playRow(modelData) }
-        onQueued: { root.selectedIndex = index; root.queueRow(modelData) }
-        onOpened: { root.selectedIndex = index; root.openRow(modelData) }
+        onOpenEntry: function(entry) { root.openEntry(entry) }
+        onPlayEntry: function(entry) { root.playEntry(entry) }
+        // No companion, no shelves: browse tidal:home the old way rather than
+        // leaving Home empty.
+        onUnavailable: {
+          if (root.homeFallback) return
+          root.homeFallback = true
+          if (root.currentUri === "tidal:home") root.openTarget("tidal:home", "Home")
+        }
+
+        Behavior on opacity { NumberAnimation { duration: Design.base; easing.type: Easing.OutCubic } }
+      }
+
+      DetailView {
+        id: detail
+        anchors.fill: parent
+        opacity: root.detailUri !== "" ? 1 : 0
+        visible: opacity > 0.01
+        svc: root.svc
+        uri: root.detailUri
+        foreground: root.foreground
+        fontFamily: root.fontFamily
+
+        onOpenUri: function(uri, title) {
+          root.pushHistory()
+          root.showDetail(uri, title)
+        }
+
+        onTitleResolved: function(title) {
+          if (root.detailUri !== "") root.currentTitle = title
+        }
+
+        Behavior on opacity { NumberAnimation { duration: Design.base; easing.type: Easing.OutCubic } }
+      }
+
+      Text {
+        anchors.centerIn: parent
+        visible: root.errorText !== "" && !root.loading
+                 && root.detailUri === "" && !root.homeActive
+        text: root.errorText
+        color: Color.muted
+        font.family: root.fontFamily
+        font.pixelSize: Style.font.body
+      }
+
+      ListView {
+        id: listView
+        anchors.fill: parent
+        opacity: root.detailUri === "" && !root.homeActive ? 1 : 0
+        visible: opacity > 0.01
+        clip: true
+        model: root.rows
+        currentIndex: root.selectedIndex
+        boundsBehavior: Flickable.StopAtBounds
+
+        Behavior on opacity { NumberAnimation { duration: Design.base; easing.type: Easing.OutCubic } }
+
+        delegate: TrackRow {
+          required property int index
+          required property var modelData
+
+          width: listView.width
+          row: modelData
+          selected: index === root.selectedIndex && !root.sidebarFocused
+          playing: root.svc && modelData && !modelData.header
+                   && Library.sameTrack(root.svc.trackUri, modelData.uri)
+          foreground: root.foreground
+          accent: Color.accent
+          fontFamily: root.fontFamily
+
+          onActivated: { root.selectedIndex = index; root.playRow(modelData) }
+          onQueued: { root.selectedIndex = index; root.queueRow(modelData) }
+          onOpened: { root.selectedIndex = index; root.openRow(modelData) }
+        }
       }
     }
   }

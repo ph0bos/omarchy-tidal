@@ -34,7 +34,14 @@ Item {
   }
   readonly property var mentions: {
     if (!page) return []
-    return (isArtist ? page.bio_links : page.review_links) || []
+    var all = (isArtist ? page.bio_links : page.review_links) || []
+    // TIDAL's editorial nearly always names the record it is reviewing, which
+    // arrives as a link back to this very page. Drop it.
+    var out = []
+    for (var i = 0; i < all.length; i++) {
+      if (all[i] && String(all[i].uri) !== root.uri) out.push(all[i])
+    }
+    return out
   }
 
   signal openUri(string uri, string title)
@@ -239,7 +246,9 @@ Item {
         }
 
         Text {
-          width: parent.width
+          // Capped: a bio set across the full width of the panel runs past 130
+          // characters a line, which is about twice a comfortable measure.
+          width: Math.min(parent.width, Style.space(600))
           text: root.body
           wrapMode: Text.WordWrap
           // TIDAL's bios run to tens of thousands of characters; show an
@@ -344,7 +353,14 @@ Item {
             row: ({
               uri: modelData.uri,
               name: modelData.name,
-              subtitle: modelData.album || modelData.artist || "",
+              // On an album page every row would otherwise repeat the album
+              // name and the artist already in the hero above it. On an artist
+              // page the record a top track comes from is worth saying.
+              artist: "",
+              album: root.isArtist ? (modelData.album || "") : "",
+              subtitle: "",
+              num: modelData.track_num || 0,
+              duration: modelData.duration || 0,
               type: "track",
               header: false
             })
@@ -385,40 +401,21 @@ Item {
 
           Flow {
             width: parent.width
-            spacing: Style.space(10)
+            spacing: Style.space(12)
 
             Repeater {
               model: gridSection.modelData.items
 
-              Column {
-                id: card
+              ArtCard {
                 required property var modelData
-                width: Style.space(104)
-                spacing: Style.space(5)
 
-                RoundedImage {
-                  width: parent.width
-                  height: width
-                  radius: card.modelData.type === "artist" ? width / 2 : Style.space(4)
-                  source: card.modelData.image || ""
+                width: Style.space(112)
+                entry: modelData
+                foreground: root.foreground
+                fontFamily: root.fontFamily
 
-                  MouseArea {
-                    anchors.fill: parent
-                    hoverEnabled: true
-                    onClicked: root.openUri(card.modelData.uri, card.modelData.name)
-                  }
-                }
-
-                Text {
-                  width: parent.width
-                  text: card.modelData.name
-                  elide: Text.ElideRight
-                  maximumLineCount: 2
-                  wrapMode: Text.WordWrap
-                  color: root.foreground
-                  font.family: root.fontFamily
-                  font.pixelSize: Style.font.caption
-                }
+                onOpened: root.openUri(String(modelData.uri), String(modelData.name || ""))
+                onActivated: Rpc.playNow([String(modelData.uri)])
               }
             }
           }

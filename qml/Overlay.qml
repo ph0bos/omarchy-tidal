@@ -43,11 +43,25 @@ Item {
   readonly property bool backendReady: svc ? svc.backendState === "up" && svc.connected : false
   readonly property bool ready: backendReady && (svc ? svc.signedIn : false)
 
-  readonly property string viewTitle: {
-    if (currentView === "search") return "Player"
-    if (currentView === "nowPlaying") return "Now Playing"
-    return "Setup"
+  // Setup is shown when we KNOW the backend is unusable, never merely because
+  // nothing has answered yet. Probing is asynchronous and the first summon
+  // after a shell restart beats it, so testing `ready` alone opened the wizard
+  // on a perfectly healthy install every single time.
+  readonly property bool decided: svc ? svc.probed : false
+  readonly property bool blocked: decided && !ready
+
+  // The view the summon actually asked for, remembered so that finishing
+  // setup drops you where you were headed instead of leaving you in the
+  // wizard.
+  property string requestedView: "search"
+
+  onBlockedChanged: {
+    if (!root.opened) return
+    if (root.blocked && root.currentView !== "setup") root.currentView = "setup"
+    else if (!root.blocked && root.currentView === "setup" && root.requestedView !== "setup")
+      root.currentView = root.requestedView
   }
+
 
   // The player needs room; setup is a small card. Sizing off the view keeps
   // both honest instead of forcing one compromise size on each.
@@ -58,13 +72,20 @@ Item {
     if (payloadJson) {
       try { args = JSON.parse(payloadJson) || {} } catch (e) { args = {} }
     }
-    // Fall back to setup until the backend is usable -- dropping someone into
-    // an empty player when they have not signed in hides the real problem.
+    // Fall back to setup only once a probe has come back saying the backend is
+    // unusable -- dropping someone into an empty player when they have not
+    // signed in hides the real problem, but so does opening the wizard on an
+    // install that is simply still answering.
     var requested = String(args.view || "search")
-    root.currentView = root.ready || requested === "setup" ? requested : "setup"
+    root.requestedView = requested
+    root.currentView = requested === "setup" || root.blocked ? "setup" : requested
+    root.menuOpen = false
     root.opened = true
     if (root.currentView === "search") root.playerLoaded = true
-    else if (root.currentView === "nowPlaying") root.nowPlayingLoaded = true
+    else if (root.currentView === "nowPlaying") {
+      root.nowPlayingLoaded = true
+      root.applyFace(String(args.face || ""))
+    }
     if (root.svc) root.svc.probeBackend()
 
     // Deep link: summon straight to an artist or album page. Stored rather than
@@ -77,6 +98,16 @@ Item {
   }
 
   function close() { root.menuOpen = false; root.opened = false }
+
+  // Which face of the now-playing view a summon asked for. Deferred rather
+  // than assigned straight away: the Loader may only be activating on this
+  // very call, and its item does not exist until it has.
+  function applyFace(face) {
+    if (face === "") return
+    Qt.callLater(function() {
+      if (nowPlayingLoader.item) nowPlayingLoader.item.face = face
+    })
+  }
 
   property bool menuOpen: false
 
@@ -98,6 +129,17 @@ Item {
     if (playerLoader.item && typeof playerLoader.item.goBack === "function") {
       playerLoader.item.goBack()
     }
+  }
+
+  // Deep-link into the player's detail page from anywhere in the overlay.
+  // Stored rather than pushed for the same reason open() stores it: the Loader
+  // resolves asynchronously and a direct call into item races it.
+  function showDetail(uri, title) {
+    if (!uri) return
+    root.pendingUri = String(uri)
+    root.pendingTitle = String(title || "")
+    root.deepLinkSerial = root.deepLinkSerial + 1
+    root.currentView = "search"
   }
 
   function runMenuAction(action) {
@@ -146,6 +188,24 @@ Item {
       focus: root.opened
       Keys.onEscapePressed: root.close()
 
+      // Now playing has no list to drive, so the keys that would otherwise go
+      // unused switch its faces. The player view keeps its own handler and
+      // takes focus while it is showing, so these never fight over a key.
+      Keys.onPressed: function(event) {
+        if (root.currentView !== "nowPlaying") return
+        if (event.key === Qt.Key_Space) {
+          if (root.svc) root.svc.playPause()
+          event.accepted = true
+          return
+        }
+        var face = event.key === Qt.Key_A ? "artwork"
+                 : (event.key === Qt.Key_L ? "lyrics"
+                 : (event.key === Qt.Key_I ? "info" : ""))
+        if (face === "") return
+        if (nowPlayingLoader.item) nowPlayingLoader.item.face = face
+        event.accepted = true
+      }
+
       Rectangle {
         id: card
         anchors.centerIn: parent
@@ -192,13 +252,6 @@ Item {
               font.weight: Font.DemiBold
             }
 
-            Text {
-              anchors.verticalCenter: parent.verticalCenter
-              text: root.viewTitle
-              color: Color.muted
-              font.family: root.fontFamily
-              font.pixelSize: Style.font.bodySmall
-            }
           }
 
           Row {
@@ -316,6 +369,9 @@ Item {
             foreground: root.foreground
             fontFamily: root.fontFamily
             onContract: root.currentView = "search"
+            // Clicking the album or artist on the info face lands on their
+            // page, through the same deep-link path a summon uses.
+            onOpenUri: function(uri, title) { root.showDetail(uri, title) }
           }
         }
 
@@ -335,6 +391,7 @@ Item {
           expanded: root.currentView === "nowPlaying"
           onArtClicked: root.currentView =
             root.currentView === "nowPlaying" ? "search" : "nowPlaying"
+          onOpenUri: function(uri, title) { root.showDetail(uri, title) }
         }
 
         MouseArea {

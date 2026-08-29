@@ -22,7 +22,7 @@ LRCLIB_URL = "https://lrclib.net/api/get"
 LRCLIB_TIMEOUT = 6
 
 # LRCLIB asks clients to identify themselves.
-USER_AGENT = "omarchy-tidal-plugin (https://github.com/stevenr/omarchy-tidal-plugin)"
+USER_AGENT = "omarchy-tidal (https://github.com/ph0bos/omarchy-tidal)"
 
 # [mm:ss.xx] or [mm:ss:xx] or [mm:ss]. A line may carry several stamps.
 _STAMP = re.compile(r"\[(\d{1,3}):(\d{2})(?:[.:](\d{1,3}))?\]")

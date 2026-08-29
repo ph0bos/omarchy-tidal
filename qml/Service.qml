@@ -128,11 +128,26 @@ Item {
   }
   readonly property bool isTidalTrack: trackUri.indexOf("tidal:") === 0
 
+  // mopidy-tidal's long uri form is tidal:track:<artist>:<album>:<id>, so the
+  // record and the performer behind the current track are already in hand --
+  // no lookup needed to make the transport bar click through to their pages.
+  // The short form carries only the track id, and these stay empty.
+  readonly property var _uriParts: trackUri.split(":")
+  readonly property string albumUri: root.isTidalTrack && _uriParts.length >= 5
+    ? "tidal:album:" + _uriParts[3] : ""
+  readonly property string artistUri: root.isTidalTrack && _uriParts.length >= 5
+    ? "tidal:artist:" + _uriParts[2] : ""
+
   // ---- backend health ------------------------------------------------------
 
   // Drives the setup wizard. "unknown" until the first probe answers so the
   // bar widget does not flash a "not set up" state on shell start.
   property string backendState: "unknown"   // unknown | down | up
+  // True once a probe has run all the way through -- ping, then the
+  // companion's health -- so callers can tell "not set up" apart from "not
+  // asked yet". Without it the overlay opens on the setup wizard every time
+  // the shell restarts, because nothing has answered yet at that instant.
+  property bool probed: false
   property bool companionAvailable: false
   // Distinct from companionAvailable: the extension can be loaded and running
   // while no Tidal session exists yet. The wizard needs to tell those apart.
@@ -148,16 +163,19 @@ Item {
         if (!root.alive) return
         root.companionAvailable = true
         root.signedIn = !!(info && info.logged_in)
+        root.probed = true
       }, function() {
         if (!root.alive) return
         root.companionAvailable = false
         root.signedIn = false
+        root.probed = true
       })
     }, function(err) {
       if (!root.alive) return
       root.backendState = "down"
       root.companionAvailable = false
       root.signedIn = false
+      root.probed = true
       root.lastError = err
     })
   }
@@ -389,9 +407,14 @@ Item {
 
   // ---- surfaces ------------------------------------------------------------
 
-  function openView(view) {
+  // `face` is only meaningful for the now-playing view, which can be summoned
+  // straight onto its lyrics or its credits. The keybinding advertised as
+  // "lyrics" should land on lyrics rather than on artwork with a click to go.
+  function openView(view, face) {
     if (!shell) return false
-    return shell.summon(pluginId, JSON.stringify({ view: view })) === true
+    var payload = { view: view }
+    if (face) payload.face = String(face)
+    return shell.summon(pluginId, JSON.stringify(payload)) === true
   }
 
   function osd(message, icon) {
@@ -407,6 +430,7 @@ Item {
       connected: root.connected,
       backend: root.backendState,
       companion: root.companionAvailable,
+      probed: root.probed,
       signedIn: root.signedIn,
       playing: root.playing,
       title: root.title,
@@ -439,6 +463,8 @@ Item {
     function overlay(): string { return root.openView("search") ? "ok" : "unhandled" }
     function search(): string { return root.openView("search") ? "ok" : "unhandled" }
     function nowPlaying(): string { return root.openView("nowPlaying") ? "ok" : "unhandled" }
+    function lyrics(): string { return root.openView("nowPlaying", "lyrics") ? "ok" : "unhandled" }
+    function info(): string { return root.openView("nowPlaying", "info") ? "ok" : "unhandled" }
     function setup(): string { return root.openView("setup") ? "ok" : "unhandled" }
     function favorite(): string { return root.toggleFavorite() ? "ok" : "unhandled" }
     function radio(): string { return root.startRadio() ? "ok" : "unhandled" }

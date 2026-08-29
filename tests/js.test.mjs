@@ -20,6 +20,7 @@ function load(relative) {
 
 const Lrc = load("qml/lib/Lrc.js");
 const Library = load("qml/lib/Library.js");
+const Design = load("qml/lib/Design.js");
 
 // ---- Lrc.js -----------------------------------------------------------------
 
@@ -139,4 +140,40 @@ test("navigation covers the browse tree and the queue", () => {
   assert.ok(uris.includes("tidal:hires"));
   assert.ok(uris.includes("tidal:my_albums"));
   assert.ok(uris.includes("queue"));
+});
+
+// ---- Design.js --------------------------------------------------------------
+
+test("fitCards keeps cards at or above the minimum width", () => {
+  for (const width of [200, 340, 480, 700, 900, 1200]) {
+    const n = Design.fitCards(width, 12, 148);
+    assert.ok(n >= 1, `no cards fit in ${width}`);
+    assert.ok(
+      Design.cardWidth(width, 12, n) >= Design.cardMin || n === 1,
+      `cards too narrow at ${width}`,
+    );
+  }
+});
+
+test("cards and their gutters never exceed the shelf", () => {
+  for (const width of [200, 340, 480, 700, 900, 1200]) {
+    const n = Design.fitCards(width, 12, 148);
+    const used = n * Design.cardWidth(width, 12, n) + (n - 1) * 12;
+    assert.ok(used <= width, `overflowed ${width} by ${used - width}`);
+  }
+});
+
+test("fitCards copes with a shelf that has no width yet", () => {
+  assert.equal(Design.fitCards(0, 12, 148), 0);
+  assert.equal(Design.fitCards(undefined, 12, 148), 0);
+  assert.equal(Design.cardWidth(500, 12, 0), 0);
+});
+
+test("clock formats seconds as m:ss", () => {
+  assert.equal(Design.clock(0), "0:00");
+  assert.equal(Design.clock(9), "0:09");
+  assert.equal(Design.clock(64), "1:04");
+  assert.equal(Design.clock(3599), "59:59");
+  assert.equal(Design.clock(-1), "0:00");
+  assert.equal(Design.clock(NaN), "0:00");
 });
