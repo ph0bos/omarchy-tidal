@@ -278,8 +278,11 @@ Item {
             // Back. Mirrors Left/Backspace so the mouse has the same way out
             // of a drill-down that the keyboard does.
             HeaderButton {
+              // Nothing to go back to during setup, and nothing to steer:
+              // these appear once there is a player behind them.
               glyph: "\uf053"
               tooltip: "Back"
+              visible: root.currentView !== "setup"
               interactive: root.canGoBack
               fontFamily: root.fontFamily
               foreground: root.foreground
@@ -289,6 +292,7 @@ Item {
             HeaderButton {
               glyph: "\uf001"
               tooltip: "Player"
+              visible: root.currentView !== "setup"
               active: root.currentView === "search"
               fontFamily: root.fontFamily
               foreground: root.foreground
@@ -298,6 +302,7 @@ Item {
             HeaderButton {
               glyph: "\uf0f6"
               tooltip: "Now playing"
+              visible: root.currentView !== "setup"
               active: root.currentView === "nowPlaying"
               fontFamily: root.fontFamily
               foreground: root.foreground
@@ -308,6 +313,7 @@ Item {
               id: menuButton
               glyph: "\uf142"
               tooltip: "Menu"
+              visible: root.currentView !== "setup"
               active: root.menuOpen
               fontFamily: root.fontFamily
               foreground: root.foreground

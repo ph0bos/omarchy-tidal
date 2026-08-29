@@ -35,10 +35,14 @@ BarWidget {
   readonly property bool showQuality: setting("showQualityBadge", false) && qualityLabel !== ""
   readonly property real maxLabelWidth: setting("maxLabelWidth", 260)
   readonly property bool scrollLongLabels: setting("scrollLongLabels", true)
+  // Off gives a tray-sized widget -- artwork and state, no text -- for anyone
+  // who puts this in the right-hand cluster, where a title that changes width
+  // every few minutes would shove the status icons around.
+  readonly property bool showLabel: setting("showLabel", true)
 
   // Album art already identifies the widget; showing the TIDAL mark next to it
   // is two logos for one thing. The mark stands in only when there is no art.
-  readonly property bool showMark: !hasArt || root.vertical
+  readonly property bool showMark: !hasArt || root.vertical || !showLabel
   readonly property bool hasArt: artUrl !== ""
 
   // Panel lifecycle, in the shape the bar looks for: it drives these when a
@@ -121,17 +125,30 @@ BarWidget {
         : Qt.darker(root.bar ? root.bar.barForeground : Color.bar.text, 1.6)
     }
 
+    // The label's natural width, measured off-screen.
+    //
+    // Sizing the clip to labelText.implicitWidth looked right and was not: an
+    // elided Text reports the width of the *elided* string, so the clip fed a
+    // narrower width back into the Text, which elided harder, and the loop
+    // settled on a title cut to a third of the space it had. TextMetrics
+    // measures the string itself and depends on nothing downstream.
+    TextMetrics {
+      id: labelMetrics
+      font: labelText.font
+      text: root.label
+    }
+
     // Track label. Elided by default; long titles scroll instead of truncating
     // so the whole thing is readable without a tooltip.
     Item {
       id: labelClip
       anchors.verticalCenter: parent.verticalCenter
-      visible: !root.vertical && root.label !== ""
-      width: Math.min(labelText.implicitWidth, root.maxLabelWidth)
+      visible: root.showLabel && !root.vertical && root.label !== ""
+      width: visible ? Math.min(labelMetrics.width, root.maxLabelWidth) : 0
       height: labelText.implicitHeight
       clip: true
 
-      readonly property bool overflowing: labelText.implicitWidth > width + 1
+      readonly property bool overflowing: labelMetrics.width > width + 1
       readonly property bool scrolling: overflowing && root.scrollLongLabels
 
       Text {
@@ -142,7 +159,7 @@ BarWidget {
         font.pixelSize: Style.font.body
         // Only elide when not scrolling, otherwise the ellipsis scrolls too.
         elide: labelClip.scrolling ? Text.ElideNone : Text.ElideRight
-        width: labelClip.scrolling ? implicitWidth : labelClip.width
+        width: labelClip.scrolling ? labelMetrics.width : labelClip.width
 
         // Pause at each end so the start and end are both readable.
         SequentialAnimation on x {
@@ -150,8 +167,8 @@ BarWidget {
           loops: Animation.Infinite
           PauseAnimation { duration: 2000 }
           NumberAnimation {
-            to: -(labelText.implicitWidth - labelClip.width)
-            duration: Math.max(1200, (labelText.implicitWidth - labelClip.width) * 26)
+            to: -(labelMetrics.width - labelClip.width)
+            duration: Math.max(1200, (labelMetrics.width - labelClip.width) * 26)
             easing.type: Easing.InOutQuad
           }
           PauseAnimation { duration: 1600 }

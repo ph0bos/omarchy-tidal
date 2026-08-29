@@ -18,6 +18,7 @@ Output is line-oriented for the QML wizard to parse:
 
     URL <login-url>     the address to open
     WAITING             now polling clipboard + handoff file
+    WARN <reason>       something is missing but the flow can still finish
     OK <user-id>        signed in, session saved
     FAIL <reason>       gave up
 """
@@ -33,12 +34,9 @@ import sys
 import time
 from pathlib import Path
 
-try:
-    import tidalapi
-    from tidalapi import Quality
-except ImportError:
-    print("FAIL tidalapi is not installed", flush=True)
-    sys.exit(1)
+# tidalapi is imported inside the commands, not here. The wizard learns what
+# went wrong from the status file, and a module-level import that fails would
+# kill this process before the status file has even been named.
 
 # Matches the address TIDAL lands on after a successful sign-in.
 REDIRECT_RE = re.compile(r"https://tidal\.com/android/login/auth\S*[?&]code=\S+")
@@ -92,17 +90,36 @@ def find_redirect(text: str) -> str | None:
     return match.group(0) if match else None
 
 
-def new_session() -> tidalapi.Session:
+def load_tidalapi():
+    """Import tidalapi, or None. The caller reports; this does not exit."""
+    try:
+        import tidalapi
+        return tidalapi
+    except ImportError:
+        return None
+
+
+def new_session(tidalapi):
     # hi_res_lossless is what the whole plugin exists for; the token has to be
     # minted against it or the session comes back capped.
-    return tidalapi.Session(tidalapi.Config(quality=Quality.hi_res_lossless))
+    return tidalapi.Session(tidalapi.Config(quality=tidalapi.Quality.hi_res_lossless))
+
+
+def have(command: str) -> bool:
+    from shutil import which
+    return which(command) is not None
 
 
 def cmd_status(_args) -> int:
     path = session_path()
     payload = {"logged_in": False, "session_file": str(path), "user_id": None}
+    tidalapi = load_tidalapi()
+    if tidalapi is None:
+        payload["error"] = "tidalapi is not installed"
+        print(json.dumps(payload))
+        return 0
     if path.is_file():
-        session = new_session()
+        session = new_session(tidalapi)
         try:
             if session.load_session_from_file(path) and session.check_login():
                 payload["logged_in"] = True
@@ -113,13 +130,18 @@ def cmd_status(_args) -> int:
     return 0
 
 
-def cmd_logout(_args) -> int:
+def cmd_logout(args) -> int:
     path = session_path()
     if path.is_file():
         path.unlink()
         emit(f"OK removed {path}")
     else:
         emit("OK nothing to remove")
+    # mopidy-tidal reads the session once, at backend startup, so without this
+    # the old session keeps working until the next reboot and "sign out" is a
+    # lie.
+    if not getattr(args, "no_restart", False):
+        restart_mopidy()
     return 0
 
 
@@ -136,7 +158,14 @@ def cmd_login(args) -> int:
         _STATUS_FILE = Path(args.status_file)
     set_status("starting")
 
-    session = new_session()
+    tidalapi = load_tidalapi()
+    if tidalapi is None:
+        emit("FAIL tidalapi is not installed")
+        set_status("fail", message="python-tidalapi is not installed. "
+                                   "Run: omarchy-tidal-setup deps")
+        return 1
+
+    session = new_session(tidalapi)
 
     try:
         login_url = session.pkce_login_url()
@@ -155,17 +184,28 @@ def cmd_login(args) -> int:
     if handoff and handoff.exists():
         handoff.unlink()
 
+    opened = False
     if args.open:
-        opener = "omarchy-launch-browser"
-        if not shutil_which(opener):
-            opener = "xdg-open"
-        subprocess.Popen(
-            [opener, login_url],
-            stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL, start_new_session=True,
-        )
+        opener = next((name for name in ("omarchy-launch-browser", "xdg-open")
+                       if have(name)), None)
+        if opener:
+            subprocess.Popen(
+                [opener, login_url],
+                stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL, start_new_session=True,
+            )
+            opened = True
+        else:
+            emit("WARN no browser opener found")
+
+    # The clipboard watcher is the whole point of this flow. If wl-paste is
+    # missing it cannot work, and without saying so the only symptom is a
+    # sign-in that waits ten minutes and then times out.
+    clipboard = have("wl-paste")
+    if not clipboard:
+        emit("WARN wl-paste is not installed")
 
     emit("WAITING")
-    set_status("waiting", url=login_url)
+    set_status("waiting", url=login_url, opened=opened, clipboard=clipboard)
 
     # Ignore whatever happened to be on the clipboard before we started, so a
     # stale redirect from an earlier attempt cannot complete this one.
@@ -216,6 +256,7 @@ def cmd_login(args) -> int:
 
     # mopidy-tidal reads its session once, at backend startup.
     if not args.no_restart:
+        set_status("finishing", message="restarting Mopidy with your session")
         restart_mopidy()
 
     if handoff and handoff.exists():
@@ -225,11 +266,6 @@ def cmd_login(args) -> int:
     emit(f"OK {user_id}")
     set_status("ok", user_id=user_id)
     return 0
-
-
-def shutil_which(name: str) -> str | None:
-    from shutil import which
-    return which(name)
 
 
 def main() -> int:
@@ -246,7 +282,10 @@ def main() -> int:
     login.set_defaults(func=cmd_login)
 
     sub.add_parser("status", help="report sign-in state as JSON").set_defaults(func=cmd_status)
-    sub.add_parser("logout", help="remove the saved session").set_defaults(func=cmd_logout)
+    logout = sub.add_parser("logout", help="remove the saved session")
+    logout.add_argument("--no-restart", action="store_true",
+                        help="do not restart mopidy afterwards")
+    logout.set_defaults(func=cmd_logout)
 
     args = parser.parse_args()
     if not getattr(args, "func", None):

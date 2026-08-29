@@ -4,7 +4,7 @@
   "name": "TIDAL",
   "version": "0.1.0",
   "author": "stevenr",
-  "description": "TIDAL in Quickshell with true hi-res lossless playback \u2014 up to 24-bit/192kHz FLAC, not the 320 kbps every other music plugin settles for.",
+  "description": "TIDAL in Quickshell with true hi-res lossless playback — up to 24-bit/192kHz FLAC, not the 320 kbps every other music plugin settles for.",
   "kinds": [
     "service",
     "bar-widget",
@@ -25,9 +25,15 @@
     "defaults": {
       "showQualityBadge": false,
       "maxLabelWidth": 260,
-      "scrollLongLabels": true
+      "scrollLongLabels": true,
+      "showLabel": true
     },
     "schema": [
+      {
+        "key": "showLabel",
+        "type": "bool",
+        "label": "Show track title"
+      },
       {
         "key": "showQualityBadge",
         "type": "bool",
