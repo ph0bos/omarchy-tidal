@@ -18,6 +18,11 @@ import "../lib/Design.js" as Design
 //   Enter          play now            Shift+Enter queue
 //   Right          open                Left/Bksp   back
 //   Tab            sidebar <-> list    Esc         close
+//
+// On Home the arrows walk the artwork grid instead -- up and down between
+// shelves, left and right along one -- and Enter opens the card's page while
+// Shift+Enter starts it, which is what the two halves of the card do to the
+// mouse.
 Item {
   id: root
 
@@ -80,6 +85,7 @@ Item {
 
   function openTarget(uri, title) {
     root.detailUri = ""
+    if (uri !== "tidal:home") homePage.clearSelection()
     if (uri === "queue") { loadQueue(); return }
     if (uri === "") { focusSearch(); return }
 
@@ -97,6 +103,10 @@ Item {
 
     root.currentUri = uri
     root.currentTitle = title || uri
+    // Cleared, not left standing: a page that shows the previous section's
+    // rows under the new section's title is lying while it waits.
+    root.rows = []
+    root.selectedIndex = 0
     root.loading = true
     root.errorText = ""
 
@@ -135,6 +145,8 @@ Item {
   function loadQueue() {
     root.currentUri = "queue"
     root.currentTitle = "Queue"
+    root.rows = []
+    root.selectedIndex = 0
     root.loading = true
     root.errorText = ""
 
@@ -165,6 +177,8 @@ Item {
     root.pendingQuery = q
     root.currentUri = "search:" + q
     root.currentTitle = "Search · " + q
+    root.rows = []
+    root.selectedIndex = 0
     root.loading = true
     root.errorText = ""
 
@@ -415,7 +429,7 @@ Item {
         onAccepted: {
           root.history = []
           root.runSearch(text)
-          listView.forceActiveFocus()
+          root.forceActiveFocus()
         }
       }
 
@@ -489,6 +503,55 @@ Item {
         Behavior on opacity { NumberAnimation { duration: Design.base; easing.type: Easing.OutCubic } }
       }
 
+      // Waiting looks like the thing you are waiting for. A TIDAL search goes
+      // out through Mopidy and can take the better part of ten seconds; an
+      // empty pane for that long reads as a failure rather than as progress.
+      Column {
+        anchors.top: parent.top
+        anchors.left: parent.left
+        anchors.right: parent.right
+        anchors.topMargin: Style.space(8)
+        spacing: Style.space(12)
+        visible: root.loading && root.rows.length === 0
+                 && root.detailUri === "" && !root.homeActive
+
+        Repeater {
+          model: 8
+
+          Row {
+            width: parent.width
+            spacing: Style.space(12)
+
+            Rectangle {
+              anchors.verticalCenter: parent.verticalCenter
+              width: Style.space(14)
+              height: width
+              radius: Style.space(2)
+              color: Qt.rgba(Color.muted.r, Color.muted.g, Color.muted.b, 0.12)
+            }
+
+            Column {
+              anchors.verticalCenter: parent.verticalCenter
+              spacing: Style.space(5)
+
+              Rectangle {
+                width: Style.space(180)
+                height: Style.space(9)
+                radius: Style.space(2)
+                color: Qt.rgba(Color.muted.r, Color.muted.g, Color.muted.b, 0.14)
+              }
+
+              Rectangle {
+                width: Style.space(120)
+                height: Style.space(7)
+                radius: Style.space(2)
+                color: Qt.rgba(Color.muted.r, Color.muted.g, Color.muted.b, 0.09)
+              }
+            }
+          }
+        }
+      }
+
       Text {
         anchors.centerIn: parent
         visible: root.errorText !== "" && !root.loading
@@ -559,6 +622,24 @@ Item {
         root.history = []
         root.openTarget(item.uri, item.label)
         root.sidebarFocused = false
+        event.accepted = true; return
+      }
+      return
+    }
+
+    // Home is a grid, not a list, so the same four keys mean rows and columns
+    // there. Everything else -- Enter, Shift+Enter, Space -- keeps its meaning.
+    if (root.homeActive) {
+      if (event.key === Qt.Key_Down) { homePage.moveRow(1); event.accepted = true; return }
+      if (event.key === Qt.Key_Up) { homePage.moveRow(-1); event.accepted = true; return }
+      if (event.key === Qt.Key_Right) { homePage.moveCol(1); event.accepted = true; return }
+      if (event.key === Qt.Key_Left) { homePage.moveCol(-1); event.accepted = true; return }
+      if (event.key === Qt.Key_Return || event.key === Qt.Key_Enter) {
+        if (shift) homePage.playSelected(); else homePage.openSelected()
+        event.accepted = true; return
+      }
+      if (event.key === Qt.Key_Space) {
+        if (root.svc) root.svc.playPause()
         event.accepted = true; return
       }
       return

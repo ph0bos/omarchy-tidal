@@ -39,7 +39,10 @@ Item {
   // be opened first -- "play an artist" is not a thing the backend can do.
   readonly property bool playable: !root.isArtist
 
-  readonly property bool hot: hover.containsMouse
+  // Keyboard selection and the pointer get the same treatment. A card that is
+  // "selected" but looks nothing like a card under the cursor teaches two
+  // different affordances for one state.
+  readonly property bool hot: hover.containsMouse || root.selected
 
   implicitWidth: Style.space(Design.cardIdeal)
   height: width + labels.implicitHeight + Style.space(9)
@@ -59,7 +62,9 @@ Item {
 
       // The picture leans towards the cursor. Scaling the masked item scales
       // its mask with it, so the corners stay round through the whole move.
-      scale: root.hot ? 1.035 : 1.0
+      // Only the pointer does this: the keyboard cursor gets a ring instead,
+      // so the two states stay tellable apart when both are on screen.
+      scale: hover.containsMouse ? 1.035 : 1.0
       Behavior on scale { NumberAnimation { duration: Design.fast; easing.type: Easing.OutCubic } }
     }
 
@@ -72,6 +77,19 @@ Item {
         GradientStop { position: 0.55; color: Qt.rgba(0, 0, 0, 0) }
         GradientStop { position: 1.0;  color: Qt.rgba(0, 0, 0, 0.45) }
       }
+      Behavior on opacity { NumberAnimation { duration: Design.fast } }
+    }
+
+    // The keyboard cursor. A ring rather than a fill: the artwork is the
+    // content, and a selected card should still be a picture.
+    Rectangle {
+      anchors.fill: parent
+      anchors.margins: -Style.space(4)
+      radius: art.radius + Style.space(4)
+      color: "transparent"
+      border.width: Math.max(1, Style.space(2))
+      border.color: Color.accent
+      opacity: root.selected ? 1 : 0
       Behavior on opacity { NumberAnimation { duration: Design.fast } }
     }
 
@@ -130,7 +148,7 @@ Item {
       text: root.label
       elide: Text.ElideRight
       maximumLineCount: 1
-      color: root.hot || root.selected ? Color.accent : root.foreground
+      color: root.hot ? Color.accent : root.foreground
       font.family: root.fontFamily
       font.pixelSize: Style.font.bodySmall
       horizontalAlignment: root.isArtist ? Text.AlignHCenter : Text.AlignLeft

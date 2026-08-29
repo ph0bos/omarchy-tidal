@@ -18,6 +18,9 @@ Item {
   property color foreground: Color.menu.text
   property string fontFamily: Style.font.menuFamily
 
+  // -1 when the cursor is not on this shelf.
+  property int selectedIndex: -1
+
   signal openEntry(var entry)
   signal playEntry(var entry)
 
@@ -60,6 +63,7 @@ Item {
 
         width: root.cardWidth
         entry: root.entries[index]
+        selected: index === root.selectedIndex
         foreground: root.foreground
         fontFamily: root.fontFamily
 

@@ -30,6 +30,62 @@ Item {
   property bool loaded: false
   property string errorText: ""
 
+  // ---- keyboard cursor ----
+  //
+  // -1 means the cursor is not on the page: nothing is highlighted until an
+  // arrow key says otherwise, so opening Home does not look like something is
+  // already chosen.
+  property int selectedRow: -1
+  property int selectedCol: 0
+
+  readonly property int perRow: Design.fitCards(list.width, Style.space(12),
+                                                Style.space(Design.cardIdeal))
+
+  function rowLength(index) {
+    if (index < 0 || index >= root.rows.length) return 0
+    var items = root.rows[index].items || []
+    return Math.min(items.length, root.perRow)
+  }
+
+  function moveRow(delta) {
+    if (root.rows.length === 0) return
+    if (root.selectedRow < 0) { root.select(0, 0); return }
+    var next = Math.max(0, Math.min(root.rows.length - 1, root.selectedRow + delta))
+    root.select(next, root.selectedCol)
+  }
+
+  function moveCol(delta) {
+    if (root.rows.length === 0) return
+    if (root.selectedRow < 0) { root.select(0, 0); return }
+    root.select(root.selectedRow, root.selectedCol + delta)
+  }
+
+  function select(row, col) {
+    var length = root.rowLength(row)
+    if (length === 0) return
+    root.selectedRow = row
+    root.selectedCol = Math.max(0, Math.min(length - 1, col))
+    list.positionViewAtIndex(row, ListView.Contain)
+  }
+
+  function selectedEntry() {
+    if (root.selectedRow < 0 || root.selectedRow >= root.rows.length) return null
+    var items = root.rows[root.selectedRow].items || []
+    return items[root.selectedCol] || null
+  }
+
+  function openSelected() {
+    var entry = root.selectedEntry()
+    if (entry) root.openEntry(entry)
+  }
+
+  function playSelected() {
+    var entry = root.selectedEntry()
+    if (entry) root.playEntry(entry)
+  }
+
+  function clearSelection() { root.selectedRow = -1; root.selectedCol = 0 }
+
   signal openEntry(var entry)
   signal playEntry(var entry)
   // Raised when the companion cannot answer, so the caller can show the plain
@@ -89,8 +145,11 @@ Item {
       required property var modelData
 
       width: list.width
+      required property int index
+
       title: modelData && modelData.title ? String(modelData.title) : ""
       entries: modelData && modelData.items ? modelData.items : []
+      selectedIndex: root.selectedRow === index ? root.selectedCol : -1
       foreground: root.foreground
       fontFamily: root.fontFamily
 

@@ -121,10 +121,56 @@ Item {
     return parts.join("  ·  ")
   }
 
+  // The page arriving, in the shape it will arrive in.
+  Row {
+    anchors.top: parent.top
+    anchors.left: parent.left
+    anchors.right: parent.right
+    spacing: Style.space(16)
+    visible: root.loading
+
+    Rectangle {
+      width: Style.space(150)
+      height: width
+      radius: root.isArtist ? width / 2 : Style.space(5)
+      color: Qt.rgba(Color.muted.r, Color.muted.g, Color.muted.b, 0.12)
+    }
+
+    Column {
+      anchors.top: parent.top
+      anchors.topMargin: Style.space(10)
+      spacing: Style.space(12)
+
+      Rectangle {
+        width: Style.space(260)
+        height: Style.space(20)
+        radius: Style.space(3)
+        color: Qt.rgba(Color.muted.r, Color.muted.g, Color.muted.b, 0.14)
+      }
+
+      Rectangle {
+        width: Style.space(170)
+        height: Style.space(10)
+        radius: Style.space(2)
+        color: Qt.rgba(Color.muted.r, Color.muted.g, Color.muted.b, 0.10)
+      }
+
+      Rectangle {
+        width: Style.space(120)
+        height: Style.space(26)
+        radius: Style.space(3)
+        color: Qt.rgba(Color.muted.r, Color.muted.g, Color.muted.b, 0.08)
+      }
+    }
+  }
+
   Text {
     anchors.centerIn: parent
-    visible: root.loading || root.errorText !== ""
-    text: root.loading ? "Loading…" : root.errorText
+    visible: root.errorText !== "" && !root.loading
+    width: parent.width - Style.space(80)
+    horizontalAlignment: Text.AlignHCenter
+    wrapMode: Text.WordWrap
+    text: root.errorText
     color: Color.muted
     font.family: root.fontFamily
     font.pixelSize: Style.font.body

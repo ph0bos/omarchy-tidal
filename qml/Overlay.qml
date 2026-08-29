@@ -94,7 +94,22 @@ Item {
     root.pendingUri = args.uri ? String(args.uri) : ""
     root.pendingTitle = args.title ? String(args.title) : ""
     root.deepLinkSerial = root.deepLinkSerial + 1
-    Qt.callLater(function() { keyCatcher.forceActiveFocus() })
+    Qt.callLater(root.focusView)
+  }
+
+  // Whichever view is showing gets the keyboard.
+  //
+  // This used to hand focus to the key catcher unconditionally, which quietly
+  // broke the player's entire keyboard model: the catcher is an ancestor of
+  // the player view, so it took the keys and the view's own handler -- search,
+  // arrows, Enter, Tab -- never ran. Keys the view does not accept still
+  // bubble up to the catcher, so Escape keeps working from anywhere.
+  function focusView() {
+    if (root.currentView === "search" && playerLoader.item) {
+      playerLoader.item.forceActiveFocus()
+      return
+    }
+    keyCatcher.forceActiveFocus()
   }
 
   function close() { root.menuOpen = false; root.opened = false }
@@ -120,6 +135,7 @@ Item {
   onCurrentViewChanged: {
     if (root.currentView === "search") root.playerLoaded = true
     else if (root.currentView === "nowPlaying") root.nowPlayingLoaded = true
+    if (root.opened) Qt.callLater(root.focusView)
   }
 
   readonly property bool canGoBack: currentView === "search" && playerLoader.item
@@ -340,7 +356,12 @@ Item {
           anchors.margins: Style.space(10)
           anchors.topMargin: Style.space(6)
           active: root.playerLoaded || root.currentView === "search"
-          visible: root.currentView === "search"
+          // Cross-faded rather than cut. Both views stay loaded, so the swap
+          // is a change of attention, not a page load, and it should look
+          // like one.
+          opacity: root.currentView === "search" ? 1 : 0
+          visible: opacity > 0.01
+          Behavior on opacity { NumberAnimation { duration: 170; easing.type: Easing.OutCubic } }
 
           sourceComponent: PlayerView {
             svc: root.svc
@@ -361,7 +382,9 @@ Item {
           anchors.bottom: transportBar.top
           anchors.margins: Style.space(4)
           active: root.nowPlayingLoaded || root.currentView === "nowPlaying"
-          visible: root.currentView === "nowPlaying"
+          opacity: root.currentView === "nowPlaying" ? 1 : 0
+          visible: opacity > 0.01
+          Behavior on opacity { NumberAnimation { duration: 170; easing.type: Easing.OutCubic } }
 
           sourceComponent: NowPlayingView {
             svc: root.svc
