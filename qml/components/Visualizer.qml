@@ -19,6 +19,14 @@ Item {
   id: root
 
   property bool active: false
+
+  // Attaching and detaching a PipeWire capture stream makes the graph
+  // re-negotiate, and with rate-following enabled that is audible as a dropout
+  // in whatever is playing. Flicking between views would otherwise restart cava
+  // every time, so the capture is held open briefly after it stops being
+  // needed and reused if the view comes back.
+  property int stopGraceMs: 6000
+  property bool capturing: false
   property int bars: 36
   property int framerate: 60
   property string binPath: ""
@@ -43,9 +51,27 @@ Item {
 
   readonly property int barCount: levels.length > 0 ? levels.length : bars
 
+  Timer {
+    id: stopGrace
+    interval: root.stopGraceMs
+    onTriggered: root.capturing = false
+  }
+
+  onActiveChanged: {
+    if (root.active) {
+      stopGrace.stop()
+      root.capturing = true
+    } else {
+      stopGrace.restart()
+    }
+    canvas.requestPaint()
+  }
+
+  Component.onDestruction: stopGrace.stop()
+
   Process {
     id: cava
-    running: root.active && root.binPath !== ""
+    running: root.capturing && root.binPath !== ""
     command: [root.binPath, String(root.bars), String(root.framerate)]
 
     stdout: SplitParser {
@@ -81,14 +107,6 @@ Item {
       root.peaks = []
       canvas.requestPaint()
     }
-  }
-
-  onActiveChanged: {
-    if (!active) {
-      root.levels = []
-      root.peaks = []
-    }
-    canvas.requestPaint()
   }
 
   Canvas {
@@ -150,6 +168,16 @@ Item {
   onLitColorChanged: canvas.requestPaint()
   onDimColorChanged: canvas.requestPaint()
   onPeakColorChanged: canvas.requestPaint()
+
+  // Drain the bars while the capture is winding down so a hidden analyser is
+  // not left frozen mid-frame when it comes back.
+  onCapturingChanged: {
+    if (!root.capturing) {
+      root.levels = []
+      root.peaks = []
+      canvas.requestPaint()
+    }
+  }
 
   onWidthChanged: canvas.requestPaint()
   onHeightChanged: canvas.requestPaint()
