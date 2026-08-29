@@ -10,6 +10,9 @@
 #   omarchy-tidal-setup login      run the TIDAL PKCE login
 #   omarchy-tidal-setup verify     confirm playback reaches hi-res
 #   omarchy-tidal-setup all        every step above, in order
+#
+# Any file this script did not write is asked about before it is replaced;
+# --force answers yes in advance. A backup is kept either way.
 #   omarchy-tidal-setup uninstall  undo all of it (--purge also drops the
 #                                  TIDAL session and mopidy.conf)
 
@@ -24,6 +27,12 @@ TIDAL_DATA_DIR="${XDG_DATA_HOME:-$HOME/.local/share}/mopidy/tidal"
 UNIT_DIR="${XDG_CONFIG_HOME:-$HOME/.config}/systemd/user"
 LOGIN_PORT=8989
 HTTP_PORT=6680
+
+# Answer "yes" in advance to every "replace this file?" question.
+FORCE=0
+for arg in "$@"; do
+  [[ "$arg" == "--force" || "$arg" == "--yes" ]] && FORCE=1
+done
 
 # python-setuptools-scm is not a runtime dependency of anything here. The AUR
 # mopidy-mpris PKGBUILD omits it from makedepends, so its wheel build fails with
@@ -215,14 +224,49 @@ cmd_deps() {
   green "dependencies present"
 }
 
+# May this script replace a file it did not write?
+#
+# A backup is not consent. Anything already on disk that we did not put there
+# gets asked about, once, by name -- and a non-interactive run refuses rather
+# than deciding on the user's behalf. Pass --force to answer in advance.
+#
+#   consent_to_replace <path> <marker>
+#
+# `marker` is the comment line this script writes into its own files; a file
+# carrying it is ours to rewrite without asking.
+consent_to_replace() {
+  local path="$1" marker="$2"
+  [[ -f "$path" ]] || return 0
+  grep -q "$marker" "$path" 2>/dev/null && return 0
+  (( FORCE )) && return 0
+
+  if [[ ! -t 0 ]]; then
+    red "$path already exists and was not written by this script."
+    red "  re-run with --force to replace it (a backup is kept)"
+    return 1
+  fi
+
+  warn "$path already exists and was not written by this script."
+  local reply
+  read -r -p "  replace it? a backup will be kept [y/N] " reply
+  [[ "$reply" == [yY]* ]]
+}
+
+# Keep a copy of what was there -- unless what was there is a previous copy of
+# what we are about to write, which would leave a trail of identical backups.
+backup_existing() {
+  local path="$1" marker="$2"
+  [[ -f "$path" ]] || return 0
+  grep -q "$marker" "$path" 2>/dev/null && return 0
+  local backup="$path.bak.$(date +%s)"
+  cp "$path" "$backup" && warn "backed up to $backup"
+}
+
 cmd_configure() {
   mkdir -p "$MOPIDY_CONF_DIR" "$STATE_DIR"
-  if [[ -f "$MOPIDY_CONF" ]]; then
-    local backup
-    backup="$MOPIDY_CONF.bak.$(date +%s)"
-    cp "$MOPIDY_CONF" "$backup"
-    warn "existing config backed up to $backup"
-  fi
+  consent_to_replace "$MOPIDY_CONF" "Managed by the Omarchy TIDAL plugin" \
+    || { red "left $MOPIDY_CONF alone"; return 1; }
+  backup_existing "$MOPIDY_CONF" "Managed by the Omarchy TIDAL plugin"
   cat > "$MOPIDY_CONF" <<CONF
 # Managed by the Omarchy TIDAL plugin (omarchy-tidal-setup configure).
 # A previous config, if any, was backed up alongside this file.
@@ -425,6 +469,9 @@ cmd_audio() {
   local dir="${XDG_CONFIG_HOME:-$HOME/.config}/pipewire/pipewire.conf.d"
   local file="$dir/10-allowed-rates.conf"
   mkdir -p "$dir"
+  consent_to_replace "$file" "Written by the Omarchy TIDAL plugin" \
+    || { red "left $file alone"; return 1; }
+  backup_existing "$file" "Written by the Omarchy TIDAL plugin"
   cat > "$file" <<'CONF'
 # Let the PipeWire graph follow the source sample rate instead of resampling
 # everything to 48 kHz. Written by the Omarchy TIDAL plugin.

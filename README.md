@@ -58,6 +58,10 @@ Prefer to do it yourself:
 ./bin/omarchy-tidal-setup all
 ```
 
+It asks before replacing any file it did not write — `mopidy.conf` and the
+PipeWire drop-in — and keeps a backup of what was there. `--force` answers yes
+in advance, for anyone scripting it.
+
 ## Removing it
 
 ```bash
