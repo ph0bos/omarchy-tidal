@@ -1,0 +1,52 @@
+#!/bin/bash
+# Streams an FFT spectrum for the visualiser.
+#
+# cava has no command-line way to set bar count or output format, so this
+# generates a throwaway config and execs cava against it. Output is one line
+# per frame: N semicolon-separated integers in 0..$RANGE.
+#
+#   omarchy-tidal-cava [bars] [framerate]
+#
+# The input is PipeWire's default sink monitor, so it follows whatever is
+# actually playing rather than being tied to Mopidy specifically. Tapping the
+# sink monitor is also what keeps it in time: it is the same signal reaching the
+# DAC, so the only offset left is the device buffer, not a separate decode path.
+
+set -euo pipefail
+
+BARS="${1:-48}"
+FRAMERATE="${2:-60}"
+RANGE=1000
+
+CONF="$(mktemp -t omarchy-tidal-cava-XXXXXX.conf)"
+trap 'rm -f "$CONF"' EXIT
+
+cat > "$CONF" <<CONF
+[general]
+framerate = $FRAMERATE
+bars = $BARS
+# autosens rescales slowly to keep quiet passages visible. It does not delay
+# individual frames, so it costs nothing in sync.
+autosens = 1
+overshoot = 0
+
+[input]
+method = pipewire
+source = auto
+
+[output]
+method = raw
+raw_target = /dev/stdout
+data_format = ascii
+ascii_max_range = $RANGE
+channels = mono
+
+[smoothing]
+# 0..1, and it is a TIME constant: higher means more averaging between frames,
+# which shows up directly as the bars lagging behind what you hear. Kept low so
+# the analyser tracks transients rather than gliding after them. Not zero --
+# that reads as jitter rather than as tightness.
+noise_reduction = 0.15
+CONF
+
+exec cava -p "$CONF"

@@ -51,7 +51,7 @@ Item {
 
   // The player needs room; setup is a small card. Sizing off the view keeps
   // both honest instead of forcing one compromise size on each.
-  readonly property bool wide: currentView === "search"
+  readonly property bool wide: currentView === "search" || currentView === "nowPlaying"
 
   function open(payloadJson) {
     var args = {}
@@ -74,7 +74,32 @@ Item {
     Qt.callLater(function() { keyCatcher.forceActiveFocus() })
   }
 
-  function close() { root.opened = false }
+  function close() { root.menuOpen = false; root.opened = false }
+
+  property bool menuOpen: false
+
+  readonly property bool canGoBack: currentView === "search" && playerLoader.item
+    && playerLoader.item.history !== undefined && playerLoader.item.history.length > 0
+
+  function goBack() {
+    if (playerLoader.item && typeof playerLoader.item.goBack === "function") {
+      playerLoader.item.goBack()
+    }
+  }
+
+  function runMenuAction(action) {
+    root.menuOpen = false
+    if (!root.svc) return
+    switch (action) {
+      case "player":   root.currentView = "search"; break
+      case "lyrics":   root.currentView = "nowPlaying"; break
+      case "favorite": root.svc.toggleFavorite(); break
+      case "radio":    root.svc.startRadio(); break
+      case "shuffle":  root.svc.toggleShuffle(); break
+      case "repeat":   root.svc.cycleRepeat(); break
+      case "consume":  root.svc.toggleConsume(); break
+    }
+  }
 
   property string pendingUri: ""
   property string pendingTitle: ""
@@ -163,14 +188,49 @@ Item {
             }
           }
 
-          Text {
+          Row {
             anchors.right: parent.right
             anchors.verticalCenter: parent.verticalCenter
-            text: root.wide ? "/ search    enter play    shift+enter queue    esc close" : "esc close"
-            color: Color.muted
-            opacity: 0.75
-            font.family: root.fontFamily
-            font.pixelSize: Style.font.caption
+            spacing: Style.space(6)
+
+            // Back. Mirrors Left/Backspace so the mouse has the same way out
+            // of a drill-down that the keyboard does.
+            HeaderButton {
+              glyph: "\uf053"
+              tooltip: "Back"
+              interactive: root.canGoBack
+              fontFamily: root.fontFamily
+              foreground: root.foreground
+              onActivated: root.goBack()
+            }
+
+            HeaderButton {
+              glyph: "\uf001"
+              tooltip: "Player"
+              active: root.currentView === "search"
+              fontFamily: root.fontFamily
+              foreground: root.foreground
+              onActivated: root.currentView = "search"
+            }
+
+            HeaderButton {
+              glyph: "\uf0f6"
+              tooltip: "Now playing"
+              active: root.currentView === "nowPlaying"
+              fontFamily: root.fontFamily
+              foreground: root.foreground
+              onActivated: root.currentView = "nowPlaying"
+            }
+
+            HeaderButton {
+              id: menuButton
+              glyph: "\uf142"
+              tooltip: "Menu"
+              active: root.menuOpen
+              fontFamily: root.fontFamily
+              foreground: root.foreground
+              onActivated: root.menuOpen = !root.menuOpen
+            }
           }
         }
 
@@ -210,7 +270,7 @@ Item {
           anchors.top: headerRule.bottom
           anchors.left: parent.left
           anchors.right: parent.right
-          anchors.bottom: parent.bottom
+          anchors.bottom: transportBar.top
           anchors.margins: Style.space(10)
           anchors.topMargin: Style.space(6)
           active: root.currentView === "search"
@@ -227,16 +287,58 @@ Item {
           }
         }
 
-        Text {
-          anchors.centerIn: parent
-          visible: root.currentView === "nowPlaying"
-          width: parent.width - Style.space(64)
-          horizontalAlignment: Text.AlignHCenter
-          wrapMode: Text.WordWrap
-          color: Color.muted
-          font.family: root.fontFamily
-          font.pixelSize: Style.font.body
-          text: "The lyrics view lands next. Lyrics already resolve from TIDAL — the view to show them is what is missing."
+        Loader {
+          id: nowPlayingLoader
+          anchors.top: headerRule.bottom
+          anchors.left: parent.left
+          anchors.right: parent.right
+          anchors.bottom: transportBar.top
+          anchors.margins: Style.space(4)
+          active: root.currentView === "nowPlaying"
+          visible: active
+
+          sourceComponent: NowPlayingView {
+            svc: root.svc
+            pluginDir: root.pluginDir
+            foreground: root.foreground
+            fontFamily: root.fontFamily
+          }
+        }
+
+        // One transport strip shared by every view: the controls should not
+        // disappear just because you switched to lyrics.
+        PlayerBar {
+          id: transportBar
+          anchors.left: parent.left
+          anchors.right: parent.right
+          anchors.bottom: parent.bottom
+          anchors.leftMargin: Style.space(10)
+          anchors.rightMargin: Style.space(10)
+          visible: root.wide
+          svc: root.svc
+          foreground: root.foreground
+          fontFamily: root.fontFamily
+        }
+
+        MouseArea {
+          anchors.fill: parent
+          visible: root.menuOpen
+          z: 90
+          onClicked: root.menuOpen = false
+        }
+
+        QuickMenu {
+          id: quickMenu
+          visible: root.menuOpen
+          z: 100
+          anchors.top: header.bottom
+          anchors.right: parent.right
+          anchors.topMargin: Style.space(6)
+          anchors.rightMargin: Style.space(14)
+          svc: root.svc
+          foreground: root.foreground
+          fontFamily: root.fontFamily
+          onRequested: function(action) { root.runMenuAction(action) }
         }
       }
     }

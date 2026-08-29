@@ -1,7 +1,7 @@
 {
   "schemaVersion": 1,
   "id": "quickshell.tidal",
-  "name": "Omarchy TIDAL",
+  "name": "TIDAL",
   "version": "0.1.0",
   "author": "stevenr",
   "description": "TIDAL in Quickshell with true hi-res lossless playback \u2014 up to 24-bit/192kHz FLAC, not the 320 kbps every other music plugin settles for.",
@@ -17,14 +17,15 @@
     "overlay": "qml/Overlay.qml"
   },
   "barWidget": {
-    "displayName": "Omarchy TIDAL",
+    "displayName": "TIDAL",
     "description": "TIDAL now-playing with transport controls and stream quality",
     "category": "Media",
     "allowMultiple": false,
     "defaultSection": "center",
     "defaults": {
-      "showQualityBadge": true,
-      "maxLabelWidth": 220
+      "showQualityBadge": false,
+      "maxLabelWidth": 260,
+      "scrollLongLabels": true
     },
     "schema": [
       {
@@ -36,6 +37,11 @@
         "key": "maxLabelWidth",
         "type": "int",
         "label": "Max label width (px)"
+      },
+      {
+        "key": "scrollLongLabels",
+        "type": "bool",
+        "label": "Scroll long titles"
       }
     ]
   },
