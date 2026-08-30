@@ -597,9 +597,31 @@ Item {
         foreground: root.foreground
         accent: Color.accent
         onAccepted: {
+          searchDebounce.stop()
           root.history = []
           root.runSearch(text)
+          // Enter is a commitment: the results take the keyboard so the next
+          // arrow key moves through them rather than through the letters.
           root.forceActiveFocus()
+        }
+        // Searching as you type, once you have stopped typing. Both native
+        // clients answer while you type; making you press Enter is asking for
+        // the same thing twice. The delay is long enough that "deftones" is
+        // one request rather than eight, and short enough to read as live.
+        onTextChanged: searchDebounce.restart()
+      }
+
+      Timer {
+        id: searchDebounce
+        interval: 320
+        onTriggered: {
+          var q = searchField.text.trim()
+          // One or two letters match everything and answer nothing.
+          if (q.length < 2) return
+          root.history = []
+          // Deliberately does not take focus: the cursor stays in the field so
+          // the next letter goes where you are looking.
+          root.runSearch(q)
         }
       }
 

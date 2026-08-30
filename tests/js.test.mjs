@@ -400,3 +400,58 @@ test("releaseDate returns nothing it cannot vouch for", () => {
   assert.equal(Design.releaseDate("2025-00-01"), "");
   assert.equal(Design.releaseDate("2025-08-00"), "");
 });
+
+test("search results put people and records above songs", () => {
+  const results = [{
+    tracks: Array.from({ length: 20 }, (_, i) => ({
+      uri: `tidal:track:${i}`, name: `Track ${i}`, length: 1000,
+      artists: [{ name: "Deftones" }], album: { name: "White Pony" }
+    })),
+    albums: Array.from({ length: 20 }, (_, i) => ({
+      uri: `tidal:album:${i}`, name: `Album ${i}`, artists: [{ name: "Deftones" }]
+    })),
+    artists: Array.from({ length: 20 }, (_, i) => ({
+      uri: `tidal:artist:${i}`, name: `Artist ${i}`
+    })),
+  }];
+  const sections = Library.fromSearch(results);
+  // Joined rather than compared as arrays: these come back from the script's
+  // own VM context, where a plain Array has a different prototype and
+  // deepEqual refuses them.
+  assert.equal(sections.map((s) => s.title).join(","), "Artists,Albums,Tracks");
+  // Each kind is capped on its own, so all three fit on one screen.
+  assert.equal(sections.map((s) => s.rows.length).join(","), "6,8,12");
+});
+
+test("search sections keep an explicit limit for every kind", () => {
+  const results = [{
+    tracks: [{ uri: "tidal:track:1", name: "T", length: 1000, artists: [{ name: "A" }] }],
+    albums: [{ uri: "tidal:album:1", name: "B", artists: [{ name: "A" }] }],
+    artists: [{ uri: "tidal:artist:1", name: "A" }],
+  }];
+  const sections = Library.fromSearch(results, 1);
+  assert.equal(sections.map((s) => s.rows.length).join(","), "1,1,1");
+});
+
+test("search drops sections that came back empty", () => {
+  const sections = Library.fromSearch([{ artists: [], albums: [], tracks: [] }]);
+  assert.equal(sections.length, 0);
+});
+
+test("an album row says the artist and the year, not its own name twice", () => {
+  const row = Library.fromAlbum({
+    uri: "tidal:album:1", name: "Unicorn", date: "2019-10-04",
+    artists: [{ name: "GUNSHIP" }],
+  });
+  assert.equal(row.name, "Unicorn");
+  assert.equal(row.artist, "GUNSHIP");
+  assert.equal(row.album, "2019");
+});
+
+test("an album with no date still names its artist", () => {
+  const row = Library.fromAlbum({
+    uri: "tidal:album:2", name: "Untitled", artists: [{ name: "GUNSHIP" }],
+  });
+  assert.equal(row.artist, "GUNSHIP");
+  assert.equal(row.album, "");
+});

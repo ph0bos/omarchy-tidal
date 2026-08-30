@@ -59,7 +59,11 @@ function fromAlbum(album) {
   var artist = _artistNames(album)
   var year = album.date ? String(album.date).substring(0, 4) : ""
   var subtitle = artist && year ? (artist + " · " + year) : (artist || year)
-  return _row(album.uri, album.name, subtitle, "album", artist, album.name)
+  // The year, not the album's own name, goes where a track row would put its
+  // album. A row headed "Unicorn" that reads "GUNSHIP · Unicorn" underneath
+  // has said the record twice and the one thing that tells two pressings
+  // apart not at all.
+  return _row(album.uri, album.name, subtitle, "album", artist, year)
 }
 
 function fromArtist(artist) {
@@ -79,8 +83,20 @@ function fromBrowse(refs) {
 
 // search() returns one result object per backend. Flatten into sections so the
 // UI can show "TRACKS / ALBUMS / ARTISTS" headers without re-deriving them.
+// Section caps are per kind, not one number for all three.
+//
+// Ordering matters more than it looks. With twelve of each and tracks first,
+// every search buried the artist you were plainly looking for under a dozen of
+// their songs. Artists and albums are few, so they go first and fit on the
+// screen together; tracks are many, so they take the rest of it. Apple Music
+// and TIDAL both put people and records above individual songs for the same
+// reason.
+var SEARCH_LIMITS = { artists: 6, albums: 8, tracks: 12 }
+
 function fromSearch(results, limitPerSection) {
-  var limit = limitPerSection || 12
+  var caps = limitPerSection
+    ? { artists: limitPerSection, albums: limitPerSection, tracks: limitPerSection }
+    : SEARCH_LIMITS
   var tracks = [], albums = [], artists = []
 
   for (var i = 0; i < (results || []).length; i++) {
@@ -88,28 +104,28 @@ function fromSearch(results, limitPerSection) {
     if (!result) continue
 
     var t = result.tracks || []
-    for (var a = 0; a < t.length && tracks.length < limit; a++) {
+    for (var a = 0; a < t.length && tracks.length < caps.tracks; a++) {
       var tr = fromTrack(t[a])
       if (tr) tracks.push(tr)
     }
 
     var al = result.albums || []
-    for (var b = 0; b < al.length && albums.length < limit; b++) {
+    for (var b = 0; b < al.length && albums.length < caps.albums; b++) {
       var ab = fromAlbum(al[b])
       if (ab) albums.push(ab)
     }
 
     var ar = result.artists || []
-    for (var c = 0; c < ar.length && artists.length < limit; c++) {
+    for (var c = 0; c < ar.length && artists.length < caps.artists; c++) {
       var an = fromArtist(ar[c])
       if (an) artists.push(an)
     }
   }
 
   var sections = []
-  if (tracks.length) sections.push({ title: "Tracks", rows: tracks })
-  if (albums.length) sections.push({ title: "Albums", rows: albums })
   if (artists.length) sections.push({ title: "Artists", rows: artists })
+  if (albums.length) sections.push({ title: "Albums", rows: albums })
+  if (tracks.length) sections.push({ title: "Tracks", rows: tracks })
   return sections
 }
 
