@@ -208,27 +208,53 @@ mkdir -p /tmp/qsimports && ln -sfn /usr/share/omarchy/shell /tmp/qsimports/qs
 
 ## Memory, measured
 
-`ps -o rss` against the live shell. Find its pid with `qs list --all`, not by
-matching the command line -- that also matches the shell running the
-measurement, which reports a very reassuring 5 MB.
+`scripts/measure-memory.sh`. It restarts the shell, samples RSS at three points
+and prints them. Find the pid with `qs list --all`, not by matching the command
+line -- that also matches the shell running the measurement, which reports a
+very reassuring 5 MB.
+
+**Close the panel with `omarchy-shell shell toggle`, not another summon.**
+Summoning an already-open panel is a no-op, so the first version of the script
+measured an open panel it believed was closed, and reported the plugin holding
+50 MB it had in fact already given back. The numbers below are the corrected
+ones; the older `~615 MB at rest` figure was that mistake.
+
+Medians of three runs, on one 5120x2160 output:
 
 ```
-omarchy shell, plugin loaded, overlay never opened   ~560 MB
-  ... every surface visited (home, library, now playing)  ~630 MB
-  ... at rest, a minute after closing                     ~615 MB
-mopidy + companion extension                          ~150 MB
+omarchy shell, plugin loaded, overlay never opened   ~530 MB
+  ... every surface visited (home, the album grid, now playing, the record)
+                                                          ~642 MB
+  ... at rest, 45s after the panel actually closes         ~590 MB
+mopidy + companion extension                          ~169 MB
 ```
 
-So the interface costs about 70 MB at peak and 50 MB at rest, against a shell
-that is already 560 MB before it opens. **Run-to-run variance on identical code
-is ~8 MB**, which is the floor for believing any change: a 2 MB "improvement" is
-noise, and two of those cost an hour to chase.
+So the interface costs about 110 MB at peak and 60 MB at rest, against a shell
+that is already 530 MB before it opens. Closing the panel returns most of it on
+its own -- the compositor drops the hidden surface's resources -- which is the
+single largest effect and needs no code.
+
+**Run-to-run variance on identical code is ~8 MB**, which is the floor for
+believing any change: a 2 MB "improvement" is noise, and two of those cost an
+hour to chase.
+
+### Two things that did not work
 
 Artwork is decoded at the size it is drawn (`RoundedImage.decodeSize`) rather
 than at the size of the file -- a 34px row thumbnail retaining a 320x320 pixmap
 is wrong on principle and wasteful of decode time. It did not move RSS: Qt's
 pixmap cache was already evicting under its own cap. Keep the property, do not
 expect the next such change to show up either.
+
+**Releasing the views after an idle period does not either.** `keepLoaded`
+holds this window for the life of the shell, so a player opened at nine in the
+morning is still built at six in the evening; unloading both Loaders five
+minutes after the panel closes looks like the obvious win. Measured over three
+runs each it is worth 2 MB -- 588 against 590 -- because the ~50 MB that
+closing returns has already been returned by then, and what is left is heap
+glibc does not hand back. It was tried, measured, and taken out again; it cost
+the reader their place in the library for nothing. Do not re-add it without a
+number.
 
 ## Where it stands
 
@@ -264,12 +290,7 @@ Next, in the order that makes sense:
 1. **A settings surface** for the plugin's own options -- sign in and out,
    which account is signed in, and the widget settings that currently live only
    in the bar's schema.
-2. **A grid mode for the library.** My Albums and My Artists are lists; both
-   native clients default to a wall of covers. The pieces exist (`ArtCard`, the
-   Home shelves, the artist discography grid) but the keyboard model would need
-   two dimensions, and that model has been broken twice already -- so it is a
-   deliberate next step rather than a quick one.
-3. **Not TIDAL Connect.** Checked against tidalapi 0.8.11: it exposes nothing
+2. **Not TIDAL Connect.** Checked against tidalapi 0.8.11: it exposes nothing
    for it. The only `device` in the whole package is `deviceType=BROWSER` on
    page requests and the OAuth device-code login. Connect is a device-side
    protocol that TIDAL's own clients speak to targets found on the network, and
@@ -278,5 +299,11 @@ Next, in the order that makes sense:
    reach is routing our *audio* elsewhere, which is PipeWire's job and Omarchy's
    audio panel already does it.
 
-The memory numbers above are the honest ceiling: the backend is the larger half
-and only comes down by replacing Mopidy, which is its own project.
+My Albums and My Artists open on a wall of covers (`LibraryGrid`), indexing the
+same rows and the same selected index as the list they stand in for, so the
+sidebar, Tab, paging and every action keep working and only the geometry
+differs. Tracks and playlists stay lists.
+
+The memory numbers above are the honest ceiling: at rest the interface is about
+60 MB over a shell that is already 530, and the backend is the larger half of
+what is left, which only comes down by replacing Mopidy -- its own project.

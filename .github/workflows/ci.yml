@@ -118,13 +118,13 @@ jobs:
       - name: Syntax check
         run: |
           set -euo pipefail
-          for f in bin/*; do
+          for f in bin/* scripts/*.sh; do
             head -1 "$f" | grep -q bash && bash -n "$f" && echo "ok: $f"
           done
       - name: Shellcheck
         run: |
           sudo apt-get update && sudo apt-get install -y shellcheck
-          shellcheck --severity=warning bin/omarchy-tidal-setup bin/omarchy-tidal-cava
+          shellcheck --severity=warning bin/omarchy-tidal-setup bin/omarchy-tidal-cava scripts/measure-memory.sh
 
   glyphs:
     name: QML text conventions
