@@ -219,7 +219,7 @@ measured an open panel it believed was closed, and reported the plugin holding
 50 MB it had in fact already given back. The numbers below are the corrected
 ones; the older `~615 MB at rest` figure was that mistake.
 
-Medians of three runs, on one 5120x2160 output:
+Medians of three runs, on a single high-DPI output:
 
 ```
 omarchy shell, plugin loaded, overlay never opened   ~530 MB
