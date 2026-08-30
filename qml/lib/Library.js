@@ -24,7 +24,7 @@ function _artistNames(item) {
   return names.join(", ")
 }
 
-function _row(uri, name, subtitle, type, artist, album) {
+function _row(uri, name, subtitle, type, artist, album, duration) {
   return {
     uri: String(uri || ""),
     name: String(name || ""),
@@ -33,6 +33,9 @@ function _row(uri, name, subtitle, type, artist, album) {
     // distinct pieces of information rather than one pre-joined string.
     artist: String(artist || ""),
     album: String(album || ""),
+    // Seconds, because that is what the rest of the plugin counts in. Mopidy
+    // reports a track's length in milliseconds; TIDAL reports it in seconds.
+    duration: Number(duration || 0),
     type: String(type || "directory"),
     playable: type === "track" || type === "album" || type === "playlist"
   }
@@ -51,7 +54,11 @@ function fromTrack(track) {
   var artist = _artistNames(track)
   var album = track.album && track.album.name ? track.album.name : ""
   var subtitle = artist && album ? (artist + " · " + album) : (artist || album)
-  return _row(track.uri, track.name, subtitle, "track", artist, album)
+  // Mopidy's `length` is milliseconds; every row in this plugin counts in
+  // seconds. A queue and a page of search results both have a column of empty
+  // space on the right where the running time belongs.
+  var seconds = track.length ? Math.round(Number(track.length) / 1000) : 0
+  return _row(track.uri, track.name, subtitle, "track", artist, album, seconds)
 }
 
 function fromAlbum(album) {

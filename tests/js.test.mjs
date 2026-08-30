@@ -455,3 +455,17 @@ test("an album with no date still names its artist", () => {
   assert.equal(row.artist, "GUNSHIP");
   assert.equal(row.album, "");
 });
+
+test("a track row carries its running time, in seconds", () => {
+  const row = Library.fromTrack({
+    uri: "tidal:track:1", name: "Passenger", length: 369000,
+    artists: [{ name: "Deftones" }], album: { name: "White Pony" },
+  });
+  assert.equal(row.duration, 369);
+  assert.equal(Design.clock(row.duration), "6:09");
+});
+
+test("a track with no length reported does not invent one", () => {
+  const row = Library.fromTrack({ uri: "tidal:track:2", name: "Untimed" });
+  assert.equal(row.duration, 0);
+});
