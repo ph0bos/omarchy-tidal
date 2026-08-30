@@ -161,7 +161,9 @@ Only playlists you made yourself are offered: the favourites list includes other
 people's, and adding to those fails at TIDAL's end rather than here.
 
 Playlists open as pages of their own — cover, who made it, how long it runs, and
-its tracks — and on one of yours, a row can be taken back out.
+its tracks — and on one of yours, a row can be taken back out or carried up and
+down by the grip on its left. The row moves under your hand and the request
+follows; if TIDAL refuses it, the row goes back where it came from and says so.
 
 ### Mini player
 

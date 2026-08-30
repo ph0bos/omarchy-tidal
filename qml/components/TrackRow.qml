@@ -27,7 +27,18 @@ Item {
   // Queue rows can be taken back out of the queue.
   property bool removable: false
 
+  // Rows on a playlist you own can be carried up and down it. The grip is
+  // explicit rather than press-and-hold on the row itself: a threshold that
+  // decides between "play this" and "move this" is a coin toss for the reader,
+  // and this row's first job is still to play.
+  property bool reorderable: false
+  property bool dragging: false
+  property bool dropTarget: false
+
   signal removed()
+  signal reorderBegan()
+  signal reorderDragged(real dy, real rowHeight)
+  signal reorderEnded()
 
   signal activated()   // Enter        -> play now
   signal queued()      // Shift+Enter  -> append
@@ -135,7 +146,64 @@ Item {
     anchors.leftMargin: Style.space(2)
     anchors.rightMargin: Style.space(2)
     radius: Style.space(3)
-    color: root.selected ? Color.menu.selectedBackground : "transparent"
+    color: root.dropTarget
+      ? Qt.rgba(root.accent.r, root.accent.g, root.accent.b, 0.16)
+      : (root.selected ? Color.menu.selectedBackground : "transparent")
+    // The row being carried steps back so the one it will land on reads.
+    opacity: root.dragging ? 0.5 : 1
+
+    Behavior on color { ColorAnimation { duration: Design.fast } }
+    Behavior on opacity { NumberAnimation { duration: Design.fast } }
+
+    // The grip takes the left edge, where a number would be: a playlist's rows
+    // are not numbered, so nothing has to move aside for it.
+    Text {
+      id: grip
+      textFormat: Text.PlainText
+      anchors.left: parent.left
+      anchors.leftMargin: Style.space(4)
+      anchors.verticalCenter: parent.verticalCenter
+      visible: root.reorderable
+      text: "\uf0c9"
+      color: root.dragging ? root.accent : Color.muted
+      opacity: rowHover.containsMouse || root.dragging ? 1 : 0
+      font.family: root.fontFamily
+      font.pixelSize: Style.font.caption
+
+      Behavior on opacity { NumberAnimation { duration: Design.fast } }
+      Behavior on color { ColorAnimation { duration: Design.fast } }
+
+      MouseArea {
+        anchors.fill: parent
+        anchors.margins: -Style.space(7)
+        hoverEnabled: true
+        cursorShape: Qt.SizeVerCursor
+        preventStealing: true
+
+        // Measured from where the press landed. The row does not move while
+        // the drag runs, so these coordinates stay stable throughout.
+        property real pressY: 0
+
+        onPressed: function(mouse) {
+          pressY = mouse.y
+          root.dragging = true
+          root.reorderBegan()
+        }
+        onPositionChanged: function(mouse) {
+          if (root.dragging) root.reorderDragged(mouse.y - pressY, root.height)
+        }
+        onReleased: {
+          if (!root.dragging) return
+          root.dragging = false
+          root.reorderEnded()
+        }
+        onCanceled: {
+          if (!root.dragging) return
+          root.dragging = false
+          root.reorderEnded()
+        }
+      }
+    }
 
     // Position, when the row has one, sits outside the sleeve: on an album
     // page the numbers are a column you read down.
@@ -156,7 +224,8 @@ Item {
 
     Item {
       id: artSlot
-      anchors.left: trackNumber.visible ? trackNumber.right : parent.left
+      anchors.left: trackNumber.visible ? trackNumber.right
+                    : (grip.visible ? grip.right : parent.left)
       anchors.leftMargin: Style.space(8)
       anchors.verticalCenter: parent.verticalCenter
       width: Style.space(34)

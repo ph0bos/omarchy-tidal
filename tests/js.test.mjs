@@ -349,3 +349,40 @@ test("contrastLightness gives up rather than returning something unreadable", ()
   // Nothing contrasts 21:1 with mid-grey.
   assert.equal(Design.contrastLightness(0.3, 0.5, 0.5, { r: 0.5, g: 0.5, b: 0.5 }, 21), -1);
 });
+
+// ---- Library.js: reordering -------------------------------------------------
+
+test("reindex lifts an item out and re-inserts it, downwards", () => {
+  // Checked against both backends: index 0 to position 3 lands third.
+  const list = ["a", "b", "c", "d", "e"];
+  assert.deepEqual(Library.reindex(list, 0, 3).join(""), "bcdae");
+});
+
+test("reindex moves upwards too, and leaves the source alone", () => {
+  const list = ["a", "b", "c", "d"];
+  assert.equal(Library.reindex(list, 3, 1).join(""), "adbc");
+  assert.equal(list.join(""), "abcd");
+});
+
+test("reindex clamps a target past either end", () => {
+  assert.equal(Library.reindex(["a", "b", "c"], 0, 99).join(""), "bca");
+  assert.equal(Library.reindex(["a", "b", "c"], 2, -5).join(""), "cab");
+});
+
+test("reindex ignores a source that is not in the list", () => {
+  assert.equal(Library.reindex(["a", "b"], 7, 0).join(""), "ab");
+});
+
+test("dropIndex turns a drag distance into the row it landed on", () => {
+  // Two rows down from row 1, at 44px a row.
+  assert.equal(Library.dropIndex(1, 88, 44, 6), 3);
+  // Half a row does not count as a move.
+  assert.equal(Library.dropIndex(1, 20, 44, 6), 1);
+  // Upwards.
+  assert.equal(Library.dropIndex(4, -90, 44, 6), 2);
+  // Never past the ends.
+  assert.equal(Library.dropIndex(0, -400, 44, 6), 0);
+  assert.equal(Library.dropIndex(5, 400, 44, 6), 5);
+  // A list that has not been laid out yet cannot be dropped into.
+  assert.equal(Library.dropIndex(2, 100, 0, 6), 2);
+});

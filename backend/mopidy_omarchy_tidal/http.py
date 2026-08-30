@@ -938,6 +938,11 @@ class PlaylistEditHandler(BaseHandler):
             return
         playlist_id = parsed[1]
 
+        try:
+            position = max(0, int(body.get("position", 0)))
+        except (TypeError, ValueError):
+            position = 0
+
         ids = _track_ids(body.get("uris"))
         if not ids:
             self.set_status(400)
@@ -952,6 +957,12 @@ class PlaylistEditHandler(BaseHandler):
                 for media_id in ids:
                     playlist.remove_by_id(media_id)
                 return {"removed": len(ids)}
+            if action == "move":
+                # Addressed by id rather than by index: the client's idea of
+                # position can be one edit out of date, and moving the wrong
+                # row is worse than failing.
+                playlist.move_by_id(ids[0], position)
+                return {"moved": ids[0], "to": position}
             playlist.add(ids)
             return {"added": len(ids)}
 

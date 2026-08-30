@@ -137,6 +137,12 @@ function playlistRemove(playlistUri, trackUris, onOk, onErr) {
            { action: "remove", playlist: playlistUri, uris: trackUris }, onOk, onErr)
 }
 
+function playlistMove(playlistUri, trackUri, position, onOk, onErr) {
+  _request("POST", "/playlist",
+           { action: "move", playlist: playlistUri, uris: [trackUri], position: position },
+           onOk, onErr)
+}
+
 function playlistCreate(name, onOk, onErr) {
   _request("POST", "/playlist", { action: "create", name: name }, onOk, onErr)
 }

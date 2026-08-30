@@ -230,14 +230,17 @@ current.
 
 Next, in the order that makes sense:
 
-1. **Playlist reordering.** The queue reorders from the keyboard
-   (`Ctrl`+arrows, `core.tracklist.move`); playlists still do not, because
-   tidalapi's `move_by_index` wants a drag interaction, and drag cannot be
-   tested here -- synthetic cursor warps deliver neither hover nor drag to the
-   surface. Worth doing when someone can drive a real mouse.
-2. **TIDAL Connect device switching.** The sleep timer is done.
-3. **A settings surface** for the plugin's own options, rather than the widget
-   schema being the only place to change anything.
+1. **A settings surface** for the plugin's own options -- sign in and out,
+   which account is signed in, and the widget settings that currently live only
+   in the bar's schema.
+2. **Not TIDAL Connect.** Checked against tidalapi 0.8.11: it exposes nothing
+   for it. The only `device` in the whole package is `deviceType=BROWSER` on
+   page requests and the OAuth device-code login. Connect is a device-side
+   protocol that TIDAL's own clients speak to targets found on the network, and
+   reaching it would mean reverse-engineering that protocol -- a different
+   project, and not one this plugin should carry. The nearest thing within
+   reach is routing our *audio* elsewhere, which is PipeWire's job and Omarchy's
+   audio panel already does it.
 
 The memory numbers above are the honest ceiling: the backend is the larger half
 and only comes down by replacing Mopidy, which is its own project.

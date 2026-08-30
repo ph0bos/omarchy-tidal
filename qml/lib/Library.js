@@ -211,6 +211,29 @@ function fromEntries(items) {
   return out
 }
 
+// Move one item within a list, the way both backends do it.
+//
+// Mopidy's core.tracklist.move and Tidal's playlist move_by_id agree on this,
+// and both were checked against a live list rather than assumed: the item is
+// lifted out and re-inserted at `to` in the list that is left. The distinction
+// matters when moving downwards, where "position in the original list" and
+// "position in the remaining list" differ by one.
+function reindex(items, from, to) {
+  var out = (items || []).slice()
+  if (from < 0 || from >= out.length) return out
+  var target = Math.max(0, Math.min(out.length - 1, to))
+  out.splice(target, 0, out.splice(from, 1)[0])
+  return out
+}
+
+// Where a drag has landed: the row index under a pointer that started on `from`
+// and has travelled `dy` pixels down a list of rows `rowHeight` tall.
+function dropIndex(from, dy, rowHeight, count) {
+  if (!rowHeight || count <= 0) return from
+  var moved = Math.round(dy / rowHeight)
+  return Math.max(0, Math.min(count - 1, from + moved))
+}
+
 // Which of someone's favourites a sidebar target is, if it is one at all.
 //
 // These four are the same lists Tidal returns as objects, with artwork and

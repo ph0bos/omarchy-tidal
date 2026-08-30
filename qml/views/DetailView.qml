@@ -116,6 +116,43 @@ Item {
     else Tidal.album(want, ok, fail)
   }
 
+  // ---- reordering ----
+  //
+  // Optimistic: the row moves under the hand and the request follows. TIDAL
+  // answers in its own time and a list that waits for it feels broken, so a
+  // failure puts the row back where it came from and says so.
+  property int dragFrom: -1
+  property int dragTo: -1
+
+  function beginReorder(index) {
+    root.dragFrom = index
+    root.dragTo = index
+  }
+
+  function updateReorder(dy, rowHeight) {
+    if (root.dragFrom < 0) return
+    root.dragTo = Library.dropIndex(root.dragFrom, dy, rowHeight, root.tracks.length)
+  }
+
+  function commitReorder() {
+    var from = root.dragFrom
+    var to = root.dragTo
+    root.dragFrom = -1
+    root.dragTo = -1
+    if (from < 0 || to < 0 || from === to) return
+    if (from >= root.tracks.length) return
+
+    var moved = String(root.tracks[from].uri)
+    root.tracks = Library.reindex(root.tracks, from, to)
+
+    Tidal.playlistMove(root.uri, moved, to, function() { /* the list already shows it */ },
+      function(err) {
+        if (!root.alive) return
+        root.tracks = Library.reindex(root.tracks, to, from)
+        if (root.svc) root.svc.osd("Could not reorder: " + err, "media")
+      })
+  }
+
   // Take a track back out of a playlist. Dropped locally on success rather than
   // re-fetching the page: the list keeps its place, which is where the reader
   // is looking.
@@ -472,6 +509,7 @@ Item {
 
           TrackRow {
             id: trackItem
+            required property int index
             required property var modelData
             width: column.width
             row: ({
@@ -497,10 +535,16 @@ Item {
             accent: Color.accent
             fontFamily: root.fontFamily
 
-            // Only your own playlists offer this, and only on hover.
+            // Only your own playlists offer these, and only on hover.
             removable: root.isPlaylist && root.page && root.page.editable === true
+            reorderable: root.isPlaylist && root.page && root.page.editable === true
+            dropTarget: root.dragFrom >= 0 && trackItem.index === root.dragTo
+                        && root.dragTo !== root.dragFrom
 
             onRemoved: root.removeTrack(String(trackItem.modelData.uri))
+            onReorderBegan: root.beginReorder(trackItem.index)
+            onReorderDragged: function(dy, rowHeight) { root.updateReorder(dy, rowHeight) }
+            onReorderEnded: root.commitReorder()
 
             onActivated: Rpc.playNow([trackItem.modelData.uri])
             onQueued: Rpc.queue([trackItem.modelData.uri], function() {
