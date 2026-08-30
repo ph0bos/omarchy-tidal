@@ -1,4 +1,5 @@
 import Quickshell
+import Quickshell.Hyprland
 import Quickshell.Wayland
 import QtQuick
 import qs.Commons
@@ -80,6 +81,7 @@ Item {
     root.requestedView = requested
     root.currentView = requested === "setup" || root.blocked ? "setup" : requested
     root.menuOpen = false
+    root.targetScreen = root.pickScreen()
     root.opened = true
     if (root.currentView === "search") root.playerLoaded = true
     else if (root.currentView === "nowPlaying") {
@@ -113,6 +115,29 @@ Item {
   }
 
   function close() { root.menuOpen = false; root.opened = false }
+
+  // Which screen to open on, decided at open time rather than left to whatever
+  // the window was created against.
+  //
+  // `keepLoaded` keeps this window alive between summons, so it can outlive the
+  // monitor it was first created on. Unplug a display -- or let one come back
+  // after a fallback output -- and the surface holds a screen that no longer
+  // exists: Quickshell logs "Layershell screen does not correspond to a real
+  // screen" and the overlay never maps again until the shell is restarted.
+  // Re-picking on every open also means the player opens on the screen you are
+  // actually looking at.
+  property var targetScreen: null
+
+  function pickScreen() {
+    var monitor = Hyprland.focusedMonitor
+    var name = monitor ? String(monitor.name || "") : ""
+    var screens = Quickshell.screens
+    for (var i = 0; i < screens.length; i++) {
+      if (String(screens[i].name) === name) return screens[i]
+    }
+    // No match: let the compositor choose, which is the old behaviour.
+    return null
+  }
 
   // Which face of the now-playing view a summon asked for. Deferred rather
   // than assigned straight away: the Loader may only be activating on this
@@ -200,6 +225,7 @@ Item {
   PanelWindow {
     id: panel
     visible: root.opened
+    screen: root.targetScreen
     anchors { top: true; bottom: true; left: true; right: true }
     color: "transparent"
     WlrLayershell.namespace: "omarchy-tidal"

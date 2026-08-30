@@ -139,8 +139,8 @@ BarWidget {
       text: root.label
     }
 
-    // Track label. Elided by default; long titles scroll instead of truncating
-    // so the whole thing is readable without a tooltip.
+    // Track label. Elided by default; a title too long for the space ticks past
+    // instead of truncating, so the whole thing is readable without a tooltip.
     Item {
       id: labelClip
       anchors.verticalCenter: parent.verticalCenter
@@ -152,33 +152,55 @@ BarWidget {
       readonly property bool overflowing: labelMetrics.width > width + 1
       readonly property bool scrolling: overflowing && root.scrollLongLabels
 
-      Text {
-        textFormat: Text.PlainText
-        id: labelText
-        text: root.label
-        color: root.bar ? root.bar.barForeground : Color.bar.text
-        font.family: root.bar ? root.bar.fontFamily : Style.font.family
-        font.pixelSize: Style.font.body
-        // Only elide when not scrolling, otherwise the ellipsis scrolls too.
-        elide: labelClip.scrolling ? Text.ElideNone : Text.ElideRight
-        width: labelClip.scrolling ? labelMetrics.width : labelClip.width
+      // The label is drawn twice with a gap between, and the pair slides by
+      // exactly one repeat before starting over. That is what makes it a
+      // marquee rather than a slide: the text never reverses, and the start of
+      // the title comes round again on its own.
+      readonly property real gap: Style.space(36)
+      readonly property real span: labelMetrics.width + gap
 
-        // Pause at each end so the start and end are both readable.
-        SequentialAnimation on x {
-          running: labelClip.scrolling && root.hasTrack
-          loops: Animation.Infinite
-          PauseAnimation { duration: 2000 }
-          NumberAnimation {
-            to: -(labelMetrics.width - labelClip.width)
-            duration: Math.max(1200, (labelMetrics.width - labelClip.width) * 26)
-            easing.type: Easing.InOutQuad
-          }
-          PauseAnimation { duration: 1600 }
-          NumberAnimation { to: 0; duration: 600; easing.type: Easing.InOutQuad }
+      Row {
+        id: ticker
+        spacing: labelClip.gap
+
+        Text {
+          id: labelText
+          textFormat: Text.PlainText
+          text: root.label
+          color: root.bar ? root.bar.barForeground : Color.bar.text
+          font.family: root.bar ? root.bar.fontFamily : Style.font.family
+          font.pixelSize: Style.font.body
+          // Only elide when parked; an ellipsis has no business in a ticker.
+          elide: labelClip.scrolling ? Text.ElideNone : Text.ElideRight
+          width: labelClip.scrolling ? labelMetrics.width : labelClip.width
         }
 
-        // Reset when the animation stops so a short title is not left offset.
-        onTextChanged: x = 0
+        Text {
+          textFormat: Text.PlainText
+          visible: labelClip.scrolling
+          width: visible ? labelMetrics.width : 0
+          text: root.label
+          color: labelText.color
+          font: labelText.font
+        }
+
+        NumberAnimation on x {
+          running: labelClip.scrolling && root.hasTrack
+          loops: Animation.Infinite
+          from: 0
+          to: -labelClip.span
+          // A constant, readable speed rather than a fixed duration: a long
+          // title should not race to keep up with a short one.
+          duration: Math.max(2000, labelClip.span * 34)
+          easing.type: Easing.Linear
+        }
+      }
+
+      // A title that stops overflowing must not be left mid-slide.
+      onScrollingChanged: if (!scrolling) ticker.x = 0
+      Connections {
+        target: root
+        function onLabelChanged() { ticker.x = 0 }
       }
     }
 

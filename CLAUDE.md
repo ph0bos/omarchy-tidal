@@ -58,6 +58,14 @@ handlers run *before* dependent bindings re-evaluate, so a `readonly property`
 computed from `foo` still describes the previous value. This produced a
 "Not an artist or album: tidal:artist:16992" bug.
 
+**A `keepLoaded` window can outlive the monitor it was created on.** The
+overlay stays loaded between summons, so a display change leaves it holding a
+screen that no longer exists: Quickshell logs "Layershell screen does not
+correspond to a real screen" and the surface never maps again, while the bar --
+recreated per output -- comes back fine. The symptom is a summon that returns
+`ok` and shows nothing. `Overlay.pickScreen()` re-picks the focused screen on
+every open, which also means the player opens where you are looking.
+
 **A plugin gets exactly one panel-kind entry point.** `shell.qml`'s
 `computePanelEntries()` picks `panel` over `overlay` over `menu` and loads only
 that one. Player, now playing and setup are therefore views inside a single
