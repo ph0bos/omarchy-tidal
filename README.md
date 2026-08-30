@@ -50,6 +50,17 @@ omarchy plugin add https://github.com/ph0bos/omarchy-tidal.git
 omarchy plugin enable quickshell.tidal
 ```
 
+Then give it some keys. Omarchy does not bind a plugin's surfaces for you, so
+add these to `~/.config/hypr/bindings.lua`:
+
+```lua
+-- Omarchy TIDAL
+o.bind("SUPER + M",         "TIDAL",          "omarchy-shell tidal overlay")
+o.bind("SUPER + SHIFT + M", "TIDAL lyrics",   "omarchy-shell tidal lyrics")
+o.bind("SUPER + ALT + M",   "TIDAL favorite", "omarchy-shell tidal favorite")
+o.bind("SUPER + CTRL + M",  "TIDAL radio",    "omarchy-shell tidal radio")
+```
+
 Then press `SUPER+M`. The plugin detects what is missing and walks you through
 installing the backend and signing in — no terminal required. Each check tells
 you what to run if it cannot fix itself.
@@ -66,19 +77,52 @@ in advance, for anyone scripting it.
 
 ## Settings
 
-`SUPER+M` then `M` → **Settings**, or `omarchy-shell tidal settings`. It shows
-which account is signed in and at what tier, the four things that have to be
-true before music comes out, and the way back out again — signing out removes
-the saved session and restarts Mopidy, so it means what it says.
+![Settings](docs/screenshots/settings.png)
+
+Open it with `omarchy-shell tidal settings`, or press `SUPER+M` for the player,
+then `M` for the quick menu, then choose **Settings**. Bind it to a key if you
+want one:
+
+```lua
+-- ~/.config/hypr/bindings.lua
+o.bind("SUPER + ALT + S", "TIDAL settings", "omarchy-shell tidal settings")
+```
+
+It shows the four things that have to be true before music comes out — Mopidy
+running, MPRIS connected, the companion extension answering, signed in to TIDAL
+— so a silent plugin says which of them is missing rather than nothing at all.
+Under those, which account is signed in and at what tier, and the way back out
+again: signing out removes the saved session and restarts Mopidy, so it means
+what it says.
+
+*(The account above is a placeholder. The real one shows your TIDAL name and
+email, which is why this screenshot was taken against stand-in values rather
+than redacted afterwards — nothing personal was ever written to the file.)*
 
 Before it is set up, the same surface is the sign-in wizard.
 
-**Announce each track** puts a notification on screen as playback moves on —
-sleeve, title, artist and album — replacing the previous one rather than
-stacking. It is on by default and lives in Settings, or
-`omarchy-shell tidal notifications` toggles it. The plugin's own options are
-kept in `~/.config/omarchy-tidal/settings.json`, beside the shell's config
-rather than inside the bar widget's entry, which would vanish with the widget.
+The plugin's own options are kept in `~/.config/omarchy-tidal/settings.json`,
+beside the shell's config rather than inside the bar widget's entry, which would
+vanish with the widget.
+
+### Track notifications
+
+![A track notification](docs/screenshots/notification.png)
+
+**Announce each track** puts the record on screen as playback moves on — sleeve,
+title, and artist · album — using your desktop's own notification daemon, so it
+looks like everything else that talks to you. Each one replaces the previous
+rather than stacking a card per song, and they expire after five seconds.
+
+It is on by default. Turn it off in Settings, or from a key:
+
+```bash
+omarchy-shell tidal notifications   # toggle announcing on track change
+omarchy-shell tidal announce        # announce what is playing, once
+```
+
+`announce` is the one to bind if you would rather ask than be told: it puts the
+current track on screen on demand, whether or not announcing is on.
 
 ## Removing it
 
@@ -265,6 +309,20 @@ silently resamples every hi-res stream before it reaches your DAC.
 | `SUPER + CTRL + M` | Start radio from current track |
 | `?` (in the player) | Every shortcut, grouped by where it works |
 
+Those four are the ones [Install](#install) suggests; Omarchy binds nothing for
+a plugin on its own. Every other surface has an IPC route too, so bind what you
+use — same file, same shape:
+
+```lua
+-- ~/.config/hypr/bindings.lua
+o.bind("SUPER + ALT + S", "TIDAL settings",   "omarchy-shell tidal settings")
+o.bind("SUPER + ALT + N", "TIDAL announce",   "omarchy-shell tidal announce")
+o.bind("SUPER + ALT + I", "TIDAL the record", "omarchy-shell tidal info")
+```
+
+`omarchy menu keybindings --print` lists everything currently bound, so you can
+check a combination is free before taking it.
+
 Inside the player: `/` search · `↑`/`↓` move · `Enter` play · `Shift+Enter`
 queue · `→` open · `←`/`Backspace` back · `Tab` switch pane · `Space`
 play/pause · `Esc` close.
@@ -298,6 +356,7 @@ omarchy-shell tidal mini         # the bar's mini player
 omarchy-shell tidal favorite | radio | shuffle | repeat | consume
 omarchy-shell tidal sleep         # cycle the sleep timer
 omarchy-shell tidal sleepOff      # cancel it
+omarchy-shell tidal settings      # settings, or the sign-in wizard
 omarchy-shell tidal notifications # announce each track, or stop
 omarchy-shell tidal announce      # announce this one now
 omarchy-shell tidal playPause | next | previous

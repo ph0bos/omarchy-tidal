@@ -77,8 +77,11 @@ Item {
     if (!account) return ""
     return String(account.email || account.username || "")
   }
+  // "HI_RES_LOSSLESS" -> "hi-res lossless". The hyphen matters: "hi res
+  // lossless" reads as three things rather than the name of one tier.
   readonly property string accountQuality: account && account.quality
-    ? String(account.quality).replace(/_/g, " ").toLowerCase() : ""
+    ? String(account.quality).replace("HI_RES", "HI-RES")
+        .replace(/_/g, " ").toLowerCase() : ""
 
   // The wizard is not always the reason the plugin cannot play: mopidy may be
   // down, or the companion missing. Each check says what to do about itself,
