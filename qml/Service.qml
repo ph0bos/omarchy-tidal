@@ -633,6 +633,7 @@ Item {
     function lyrics(): string { return root.openView("nowPlaying", "lyrics") ? "ok" : "unhandled" }
     function info(): string { return root.openView("nowPlaying", "info") ? "ok" : "unhandled" }
     function setup(): string { return root.openView("setup") ? "ok" : "unhandled" }
+    function settings(): string { return root.openView("setup") ? "ok" : "unhandled" }
     function favorite(): string { return root.toggleFavorite() ? "ok" : "unhandled" }
     function radio(): string { return root.startRadio() ? "ok" : "unhandled" }
     function shuffle(): string { return root.toggleShuffle() ? "ok" : "unhandled" }

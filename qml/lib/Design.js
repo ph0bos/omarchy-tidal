@@ -16,6 +16,14 @@ var fast = 130
 var base = 190
 var slow = 280
 
+// How long the arriving half of a transition waits for the leaving half.
+//
+// When a sleeve shrinks aside and a lyric sheet takes its place, moving both at
+// once reads as the whole panel wobbling. Letting the object move first and the
+// content follow makes it read as one thing making room for another. Short
+// enough that it feels like sequence rather than delay.
+var stagger = 110
+
 // Artwork tiles. `cardIdeal` is the width a card wants; a shelf fits as many
 // as it can at or above `cardMin` and then shares the remainder out, so cards
 // stay on a common grid instead of every shelf picking its own size.

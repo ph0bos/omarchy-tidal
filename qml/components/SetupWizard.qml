@@ -3,6 +3,7 @@ import Quickshell
 import Quickshell.Io
 import qs.Commons
 import qs.Ui
+import "../lib/TidalApi.js" as Tidal
 
 // First-run setup and Tidal sign-in, without ever opening a terminal.
 //
@@ -50,6 +51,34 @@ Item {
   readonly property bool mprisUp: svc ? svc.connected : false
   readonly property bool companionUp: svc ? svc.companionAvailable : false
   readonly property bool ready: backendUp && mprisUp && companionUp && signedIn
+
+  // ---- the account ----
+  //
+  // Which account this is, so "sign out" is a decision rather than a gamble.
+  // Fetched here rather than held in the service: it is settings-surface
+  // detail, read when the surface is open and dropped when it closes.
+  property var account: null
+
+  function refreshAccount() {
+    if (!root.signedIn) { root.account = null; return }
+    Tidal.authStatus(function(info) {
+      if (!root.alive) return
+      root.account = info && info.logged_in ? info : null
+    }, function() {
+      if (root.alive) root.account = null
+    })
+  }
+
+  onSignedInChanged: root.refreshAccount()
+  Component.onCompleted: root.refreshAccount()
+
+  readonly property string accountName: account && account.name ? String(account.name) : ""
+  readonly property string accountEmail: {
+    if (!account) return ""
+    return String(account.email || account.username || "")
+  }
+  readonly property string accountQuality: account && account.quality
+    ? String(account.quality).replace(/_/g, " ").toLowerCase() : ""
 
   // The wizard is not always the reason the plugin cannot play: mopidy may be
   // down, or the companion missing. Each check says what to do about itself,
@@ -220,7 +249,7 @@ Item {
 
       Text {
         textFormat: Text.PlainText
-        text: root.ready ? "Ready" : "Set up TIDAL"
+        text: root.ready ? "Settings" : "Set up TIDAL"
         color: root.foreground
         font.family: root.fontFamily
         font.pixelSize: Style.font.heading
@@ -300,6 +329,59 @@ Item {
       height: Math.max(1, Style.space(1))
       color: Color.menu.border
       opacity: 0.45
+    }
+
+    // ---- the account ----
+    //
+    // Which account this is, so signing out is a decision rather than a
+    // gamble about whose session is about to be thrown away.
+    Column {
+      width: parent.width
+      spacing: Style.space(4)
+      visible: root.signedIn && root.account !== null
+
+      Text {
+        textFormat: Text.PlainText
+        text: "ACCOUNT"
+        color: Color.muted
+        font.family: root.fontFamily
+        font.pixelSize: Style.font.caption
+        font.letterSpacing: 1.3
+        bottomPadding: Style.space(2)
+      }
+
+      Text {
+        textFormat: Text.PlainText
+        width: parent.width
+        visible: root.accountName !== ""
+        text: root.accountName
+        elide: Text.ElideRight
+        color: root.foreground
+        font.family: root.fontFamily
+        font.pixelSize: Style.font.body
+      }
+
+      Text {
+        textFormat: Text.PlainText
+        width: parent.width
+        visible: root.accountEmail !== ""
+        text: root.accountEmail
+        elide: Text.ElideRight
+        color: Color.muted
+        font.family: root.fontFamily
+        font.pixelSize: Style.font.bodySmall
+      }
+
+      Text {
+        textFormat: Text.PlainText
+        width: parent.width
+        visible: root.accountQuality !== ""
+        text: "Streaming at " + root.accountQuality
+        color: Color.muted
+        opacity: 0.75
+        font.family: root.fontFamily
+        font.pixelSize: Style.font.caption
+      }
     }
 
     // ---- idle: offer sign-in ----
@@ -508,9 +590,10 @@ Item {
         color: Color.accent
         font.family: root.fontFamily
         font.pixelSize: Style.font.body
-        text: root.authState === "ok"
-          ? "Signed in. Mopidy restarted with your session."
-          : "Signed in to TIDAL."
+        // The account block above already says who is signed in; repeating it
+        // here is only worth doing at the moment it becomes true.
+        visible: root.authState === "ok"
+        text: "Signed in. Mopidy restarted with your session."
       }
 
       Text {

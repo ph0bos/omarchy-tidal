@@ -222,6 +222,7 @@ Item {
       case "sleep":    root.svc.cycleSleep(); break
       case "playlist": root.addToPlaylist(root.svc.trackUri, root.svc.title); break
       case "keys":     root.toggleShortcuts(); break
+      case "settings": root.currentView = "setup"; break
     }
   }
 

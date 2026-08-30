@@ -117,13 +117,30 @@ class HealthHandler(BaseHandler):
 
 
 class AuthStatusHandler(BaseHandler):
+    """Who is signed in, and at what quality.
+
+    Enough for a settings surface to say whose account this is without the UI
+    having to guess. The email is included because it is the field people
+    recognise as "which account"; nothing here is written to disk or sent
+    anywhere but the local UI.
+    """
+
     async def get(self) -> None:
         logged_in = await self.run(self.provider.logged_in)
         payload = {"logged_in": logged_in, "quality": str(self.provider.quality)}
         if logged_in:
             session = self.provider.get()
             user = getattr(session, "user", None)
+
+            def field(name):
+                value = getattr(user, name, None)
+                return str(value) if value else ""
+
             payload["user_id"] = getattr(user, "id", None)
+            payload["username"] = field("username")
+            payload["email"] = field("email")
+            name = " ".join(part for part in (field("first_name"), field("last_name")) if part)
+            payload["name"] = name
         self.write_json(payload)
 
 

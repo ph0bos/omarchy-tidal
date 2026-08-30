@@ -64,6 +64,15 @@ It asks before replacing any file it did not write — `mopidy.conf` and the
 PipeWire drop-in — and keeps a backup of what was there. `--force` answers yes
 in advance, for anyone scripting it.
 
+## Settings
+
+`SUPER+M` then `M` → **Settings**, or `omarchy-shell tidal settings`. It shows
+which account is signed in and at what tier, the four things that have to be
+true before music comes out, and the way back out again — signing out removes
+the saved session and restarts Mopidy, so it means what it says.
+
+Before it is set up, the same surface is the sign-in wizard.
+
 ## Removing it
 
 ```bash

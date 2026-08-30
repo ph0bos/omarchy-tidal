@@ -135,6 +135,7 @@ Item {
 
   onActiveIndexChanged: if (root.activeIndex >= 0) lyricList.centerOn(root.activeIndex)
 
+
   // ---- album info ---------------------------------------------------------
   //
   // Fetched only when the info face is actually opened. Pulling a full album
@@ -178,8 +179,15 @@ Item {
     }, function() { if (root.alive) root.albumLoading = false })
   }
 
-  onFaceChanged: if (root.face === "info") root.loadAlbum()
+  onFaceChanged: {
+    if (root.face === "info") root.loadAlbum()
+    // Coming back to the sheet, the next placement is a cut rather than a
+    // glide: a sheet that fades in and then scrolls has arrived twice.
+    if (root.face === "lyrics") lyricList.snapNext = true
+  }
   onTrackUriChanged: {
+    // A different song's sheet also arrives in place rather than scrolling to it.
+    lyricList.snapNext = true
     root.album = null
     root.albumForTrack = ""
     root.albumLoading = false
@@ -410,8 +418,26 @@ Item {
       opacity: root.face === "artwork" ? 0 : 1
       visible: opacity > 0.01
 
-      Behavior on x { NumberAnimation { duration: Design.slow; easing.type: Easing.InOutCubic } }
-      Behavior on opacity { NumberAnimation { duration: Design.base; easing.type: Easing.OutCubic } }
+      // No Behavior on x. The pane's column depends on the sleeve's size, so
+      // animating it sent the two sliding toward each other at once, which is
+      // two things moving where the eye wants one. It repositions while it is
+      // invisible instead, and only its opacity is animated.
+      Behavior on opacity {
+        SequentialAnimation {
+          // Arriving, wait for the sleeve to be under way; leaving, go at once.
+          PauseAnimation { duration: root.face === "artwork" ? 0 : Design.stagger }
+          NumberAnimation { duration: Design.base; easing.type: Easing.OutCubic }
+        }
+      }
+
+      // A short rise as it arrives, settling back as it goes. Small enough to
+      // be felt rather than watched.
+      transform: Translate {
+        y: root.face === "artwork" ? Style.space(14) : 0
+        Behavior on y {
+          NumberAnimation { duration: Design.base + Design.stagger; easing.type: Easing.OutCubic }
+        }
+      }
 
       Text {
         id: eyebrow
@@ -467,6 +493,11 @@ Item {
           // No highlight range: it moves contentY on its own and would fight
           // the glide below for the same property.
 
+          // Set while the sheet is arriving, so its first placement is a cut
+          // rather than a glide. A sheet that fades in and *then* scrolls to
+          // the right line has arrived twice.
+          property bool snapNext: true
+
           // Apple Music and TIDAL both slide the sheet rather than cutting to
           // the next line, and the movement is most of what makes a lyric
           // sheet feel like it is keeping time with the song. The view is
@@ -476,6 +507,7 @@ Item {
             var from = contentY
             positionViewAtIndex(index, ListView.Center)
             var to = contentY
+            if (snapNext) { snapNext = false; return }
             if (Math.abs(to - from) < 1) return
             contentY = from
             glide.to = to
