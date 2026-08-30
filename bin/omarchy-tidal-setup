@@ -25,6 +25,9 @@ STATE_DIR="${XDG_STATE_HOME:-$HOME/.local/state}/omarchy-tidal"
 # (Extension.get_data_dir -> $XDG_DATA_DIR/mopidy/tidal), not the config dir.
 TIDAL_DATA_DIR="${XDG_DATA_HOME:-$HOME/.local/share}/mopidy/tidal"
 UNIT_DIR="${XDG_CONFIG_HOME:-$HOME/.config}/systemd/user"
+DESKTOP_DIR="${XDG_DATA_HOME:-$HOME/.local/share}/applications"
+ICON_DIR="${XDG_DATA_HOME:-$HOME/.local/share}/icons/hicolor/scalable/apps"
+PLUGIN_DIR="${XDG_CONFIG_HOME:-$HOME/.config}/omarchy/plugins/quickshell.tidal"
 LOGIN_PORT=8989
 HTTP_PORT=6680
 
@@ -582,6 +585,13 @@ cmd_uninstall() {
     green "removed the artwork cache"
   fi
 
+  if [[ -f "$DESKTOP_DIR/omarchy-tidal.desktop" ]]; then
+    rm -f "$DESKTOP_DIR/omarchy-tidal.desktop" "$ICON_DIR/omarchy-tidal.svg"
+    command -v update-desktop-database >/dev/null 2>&1 \
+      && update-desktop-database "$DESKTOP_DIR" >/dev/null 2>&1
+    green "removed the launcher entry"
+  fi
+
   local rates="${XDG_CONFIG_HOME:-$HOME/.config}/pipewire/pipewire.conf.d/10-allowed-rates.conf"
   if [[ -f "$rates" ]] && grep -q "omarchy-tidal" "$rates" 2>/dev/null; then
     rm -f "$rates"
@@ -607,12 +617,63 @@ cmd_uninstall() {
   green "done. Remove the plugin itself with: omarchy plugin remove quickshell.tidal"
 }
 
+# A launcher entry, so TIDAL is in Omarchy's Apps like anything else.
+#
+# The plugin's surfaces answer to keys and to IPC, which is fine once you know
+# they are there -- but a plugin nobody can find in the launcher is a plugin
+# that looks uninstalled. This writes a desktop entry that opens the player, and
+# installs the app icon under hicolor so the launcher has something to draw.
+cmd_desktop() {
+  mkdir -p "$DESKTOP_DIR" "$ICON_DIR"
+
+  local icon_src="$PLUGIN_DIR/assets/app-icon.svg"
+  # Running from a clone rather than an installed plugin.
+  [[ -f "$icon_src" ]] || icon_src="$(dirname "$(dirname "$(readlink -f "$0")")")/assets/app-icon.svg"
+
+  if [[ -f "$icon_src" ]]; then
+    install -m 644 "$icon_src" "$ICON_DIR/omarchy-tidal.svg"
+    green "installed $ICON_DIR/omarchy-tidal.svg"
+  else
+    warn "no app icon found; the launcher entry will use a generic icon"
+  fi
+
+  cat > "$DESKTOP_DIR/omarchy-tidal.desktop" <<'DESKTOP'
+[Desktop Entry]
+Type=Application
+Name=TIDAL
+GenericName=Music Player
+Comment=Hi-res lossless TIDAL in the Omarchy shell
+Exec=omarchy-shell tidal overlay
+Icon=omarchy-tidal
+Terminal=false
+StartupNotify=false
+Categories=AudioVideo;Audio;Player;
+Keywords=music;tidal;flac;lossless;hi-res;
+Actions=NowPlaying;Settings;
+
+[Desktop Action NowPlaying]
+Name=Now Playing
+Exec=omarchy-shell tidal nowPlaying
+
+[Desktop Action Settings]
+Name=Settings
+Exec=omarchy-shell tidal settings
+DESKTOP
+  green "installed $DESKTOP_DIR/omarchy-tidal.desktop"
+
+  # Some launchers read the cache rather than the directory.
+  command -v update-desktop-database >/dev/null 2>&1 \
+    && update-desktop-database "$DESKTOP_DIR" >/dev/null 2>&1
+  blue "TIDAL should now appear in Apps"
+}
+
 cmd_all() {
   cmd_deps      || return 1
   cmd_configure || return 1
   cmd_service   || return 1
   cmd_audio
   cmd_backend   || return 1
+  cmd_desktop
   cmd_login     || return 1
   cmd_verify
 }
@@ -624,9 +685,10 @@ case "${1:-check}" in
   service)   cmd_service ;;
   audio)     cmd_audio ;;
   backend)   cmd_backend ;;
+  desktop)   cmd_desktop ;;
   login)     cmd_login ;;
   verify)    cmd_verify ;;
   all)       cmd_all ;;
   uninstall) cmd_uninstall "${2:-}" ;;
-  *) echo "usage: $0 {check|deps|configure|service|audio|backend|login|verify|all}" >&2; exit 2 ;;
+  *) echo "usage: $0 {check|deps|configure|service|audio|backend|desktop|login|verify|all}" >&2; exit 2 ;;
 esac

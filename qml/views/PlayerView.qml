@@ -209,6 +209,23 @@ Item {
     })
   }
 
+  // A favourites list opened before the companion answered is a browse list of
+  // bare refs, and it stayed one: nothing re-opened the section once the
+  // companion came up. Open the player the moment you log in and My Albums was
+  // a list of names for the rest of the session. This upgrades it in place.
+  Connections {
+    target: root.svc
+    function onCompanionAvailableChanged() {
+      if (!root.alive || !root.svc || !root.svc.companionAvailable) return
+      // A companion that answered and then refused is a different problem, and
+      // `libraryFallback` is the flag that remembers it.
+      if (root.libraryFallback) return
+      var section = Library.librarySection(root.currentUri)
+      if (section === "" || root.librarySection === section) return
+      root.openTarget(root.currentUri, root.currentTitle)
+    }
+  }
+
   // Fetch the next page before the list runs out, so scrolling does not stop
   // at a boundary the reader can feel.
   function maybeLoadMore(index) {

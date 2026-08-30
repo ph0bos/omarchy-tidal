@@ -105,12 +105,19 @@ Item {
 
     // The keyboard cursor. A ring rather than a fill: the artwork is the
     // content, and a selected card should still be a picture.
+    //
+    // Drawn on the artwork's own edge, not floated outside it. The ring used to
+    // sit four pixels out with a radius of `art.radius + Style.space(4)`, which
+    // is only the right curve if `Style.space` is linear -- and outside the
+    // sleeve it had nothing to line up against, so on a grid it read as a box
+    // that had slipped off its picture. On the edge it cannot be misaligned:
+    // it is the same rectangle the artwork is.
     Rectangle {
       anchors.fill: parent
-      anchors.margins: -Style.space(4)
-      radius: art.radius + Style.space(4)
+      radius: art.radius
       color: "transparent"
-      border.width: Math.max(1, Style.space(2))
+      antialiasing: true
+      border.width: Math.max(2, Style.space(2))
       border.color: Color.accent
       opacity: root.selected ? 1 : 0
       Behavior on opacity { NumberAnimation { duration: Design.fast } }

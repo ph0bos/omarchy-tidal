@@ -65,6 +65,14 @@ Then press `SUPER+M`. The plugin detects what is missing and walks you through
 installing the backend and signing in — no terminal required. Each check tells
 you what to run if it cannot fix itself.
 
+Setup also puts **TIDAL in Omarchy's Apps**, so it opens from the launcher like
+anything else — with *Now Playing* and *Settings* on its right-click menu. If
+you only want that part:
+
+```bash
+./bin/omarchy-tidal-setup desktop
+```
+
 Prefer to do it yourself:
 
 ```bash
@@ -73,7 +81,8 @@ Prefer to do it yourself:
 
 It asks before replacing any file it did not write — `mopidy.conf` and the
 PipeWire drop-in — and keeps a backup of what was there. `--force` answers yes
-in advance, for anyone scripting it.
+in advance, for anyone scripting it. `uninstall` takes the launcher entry and
+its icon back out again.
 
 ## Settings
 
@@ -170,8 +179,8 @@ without leaving the page.
 
 ![The player](docs/screenshots/player.png)
 
-Sidebar over the whole TIDAL tree — Home, **Hi-Res**, your tracks, albums,
-artists, playlists and mixes — with search, drill-down, and a queue.
+Sidebar over the TIDAL tree — Home, your tracks, albums, artists, playlists and
+mixes — with search, drill-down, and a queue.
 
 Every row carries its artwork, its artist and its album, and its running time,
 the way Apple Music and TIDAL's own client do. Library rows that arrive with

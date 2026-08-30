@@ -278,16 +278,21 @@ function librarySection(uri) {
 // not among them: it has its own field in the page header, and a nav row that
 // only moved focus into that field was a second door onto the same room.
 //
-// "For You" is not among them either. It is not a different page: measured
-// against a real account, `for_you` and `home` return twenty rows each of
-// which seventeen are identical -- same titles, same items, same order -- and
-// the remaining three differ only in which record a "Because you listened to"
+// "For You" is not among them. It is not a different page: measured against a
+// real account, `for_you` and `home` return twenty rows each of which
+// seventeen are identical -- same titles, same items, same order -- and the
+// remaining three differ only in which record a "Because you listened to"
 // shelf was seeded from. Browsing it gave four folders with no artwork, which
 // is what the Home page was rebuilt to stop doing. One door onto one room.
+//
+// "Hi-Res" is not among them either. It was TIDAL's own `tidal:hires` browse
+// target, and a row whose name has to be explained is a row that has not
+// earned its place: everything in this plugin is hi-res when the account and
+// the record allow it, the quality badge says so on every track, and the
+// listener has no separate library of hi-res things to visit.
 function navigation() {
   return [
     { label: "Home",        uri: "tidal:home",        icon: "home" },
-    { label: "Hi-Res",      uri: "tidal:hires",       icon: "hires" },
     { label: "My Tracks",   uri: "tidal:my_tracks",   icon: "track" },
     { label: "My Albums",   uri: "tidal:my_albums",   icon: "album" },
     { label: "My Artists",  uri: "tidal:my_artists",  icon: "artist" },

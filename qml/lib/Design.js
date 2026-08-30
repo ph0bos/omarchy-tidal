@@ -57,6 +57,22 @@ function cardWidth(width, gutter, count) {
   return Math.floor((w - (n - 1) * g) / n)
 }
 
+// The width one card gets in a grid whose cells carry their own gutter.
+//
+// Not the same sum as `cardWidth`. A shelf is a row with spacing, so its
+// gutters fall only *between* the cards: n cards and n-1 gaps. A GridView's
+// cell is card-plus-gutter, so a row of n cells is n cards and n gaps, with the
+// last one falling off the right edge. Feeding a shelf's width to a grid makes
+// every row one gutter too wide, GridView fits one fewer column, and a column's
+// worth of space sits empty down the right of the page.
+function gridCardWidth(width, gutter, count) {
+  var n = Number(count) || 0
+  if (n <= 0) return 0
+  var w = Number(width) || 0
+  var g = Number(gutter) || 0
+  return Math.max(1, Math.floor((w - n * g) / n))
+}
+
 // Elapsed/total as "1:04", the only time format the UI shows.
 function clock(seconds) {
   var total = Number(seconds)

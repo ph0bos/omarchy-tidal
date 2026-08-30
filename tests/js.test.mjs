@@ -137,7 +137,7 @@ test("flatten inserts headers and marks rows", () => {
 
 test("navigation covers the browse tree and the queue", () => {
   const uris = Library.navigation().map((n) => n.uri);
-  assert.ok(uris.includes("tidal:hires"));
+  assert.ok(uris.includes("tidal:mixes"));
   assert.ok(uris.includes("tidal:my_albums"));
   assert.ok(uris.includes("queue"));
 });
@@ -475,5 +475,26 @@ test("the sidebar has one door onto the personalised page", () => {
   assert.ok(uris.includes("tidal:home"));
   // For You is the same page as Home -- seventeen of twenty rows identical.
   assert.ok(!uris.includes("tidal:for_you"));
+  // Hi-Res was a row whose name had to be explained. Everything here is
+  // hi-res when the account and the record allow it.
+  assert.ok(!uris.includes("tidal:hires"));
   assert.equal(uris[uris.length - 1], "queue");
+});
+
+test("a grid's cards leave room for the gutter each cell carries", () => {
+  // A shelf puts gutters between the cards: 4 cards and 3 gaps.
+  assert.equal(Design.cardWidth(830, 12, 4), 198);
+  assert.equal(4 * 198 + 3 * 12, 828);
+  // A grid cell is card-plus-gutter, so four of them must fit inside 830.
+  const card = Design.gridCardWidth(830, 12, 4);
+  assert.equal(card, 195);
+  assert.ok(4 * (card + 12) <= 830);
+  // The shelf width would not have fitted, which is the bug this exists for.
+  assert.ok(4 * (198 + 12) > 830);
+});
+
+test("gridCardWidth refuses to return a width nothing can be drawn at", () => {
+  assert.equal(Design.gridCardWidth(0, 12, 4), 1);
+  assert.equal(Design.gridCardWidth(830, 12, 0), 0);
+  assert.equal(Design.gridCardWidth(10, 12, 4), 1);
 });

@@ -31,7 +31,10 @@ Item {
   readonly property real gutter: Style.space(12)
   readonly property int perRow: Math.max(1,
     Design.fitCards(grid.width, root.gutter, Design.cardIdeal))
-  readonly property real cardWidth: Design.cardWidth(grid.width, root.gutter, root.perRow)
+  // The grid's own sum, not the shelf's: a cell carries its gutter, so a row of
+  // n cells is n cards and n gutters rather than n-1.
+  readonly property real cardWidth:
+    Design.gridCardWidth(grid.width, root.gutter, root.perRow)
 
   // A GridView needs one cell height for every delegate, and a card's height is
   // its artwork plus two lines of label. ArtCard holds the second line even
