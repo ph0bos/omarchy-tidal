@@ -231,6 +231,9 @@ Item {
     var rep = next !== "off"
     var single = next === "single"
     Rpc.setRepeat(rep, function() {
+      // Nothing to write here, but a second request on behalf of an object
+      // that no longer exists is still worth not sending.
+      if (!root.alive) return
       Rpc.call("core.tracklist.set_single", { value: single }, function() {
         if (!root.alive) return
         root.repeatMode = next

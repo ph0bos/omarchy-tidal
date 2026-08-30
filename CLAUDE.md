@@ -45,7 +45,10 @@ do nothing: the shell keeps serving the QML it loaded first, and
 silently stripped when a file is written through a shell heredoc. The symptom
 is an invisible icon, not an error. CI checks for this.
 
-**Guard every async callback with `root.alive`.** Saving a file hot-reloads
+**Guard every async callback with `root.alive`.** `scripts/check-async-guards.py`
+enforces it in CI: a function literal handed to `Rpc.*` or `Tidal.*` may not
+mention `root.` before it has mentioned `alive`. Mark a genuine exception with an
+`async-guard: ok` comment rather than working around the check. Saving a file hot-reloads
 plugin code and destroys live objects. A callback or timer that then writes a
 property is a use-after-free, and Quickshell turns that into a fatal abort that
 takes the entire shell down.

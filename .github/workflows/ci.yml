@@ -152,3 +152,9 @@ jobs:
       # data from TIDAL that the user did not author.
       - name: Every Text sets textFormat
         run: python3 scripts/check-textformat.py .
+
+      # A callback that runs after a hot reload and touches its object is a
+      # use-after-free, and Quickshell turns that into a fatal abort that takes
+      # the whole shell down -- not just this plugin.
+      - name: Async callbacks check alive first
+        run: python3 scripts/check-async-guards.py .

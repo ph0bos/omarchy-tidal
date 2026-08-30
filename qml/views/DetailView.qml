@@ -493,7 +493,10 @@ Item {
 
             onActivated: Rpc.playNow([trackItem.modelData.uri])
             onQueued: Rpc.queue([trackItem.modelData.uri], function() {
-              if (root.svc) root.svc.osd("Added to queue", "media")
+              // Saving a file hot-reloads this view out from under an
+              // in-flight request; reading svc afterwards is a use-after-free.
+              if (!root.alive || !root.svc) return
+              root.svc.osd("Added to queue", "media")
             })
           }
         }
