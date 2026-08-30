@@ -32,6 +32,23 @@ Item {
                                          Color.popups.background.b, 0.4)
   readonly property color onArt: Color.popups.text
 
+  // The sleeve's colour, lifted until it reads against this surface. Falls back
+  // to the theme's accent only when no lightness of that hue would do.
+  function tintFrom(colour, background) {
+    if (!colour || colour === "") return Color.accent
+    var candidate = Qt.color(colour)
+    if (Design.contrast(candidate, background) >= 3) return candidate
+    var lightness = Design.contrastLightness(candidate.hslHue, candidate.hslSaturation,
+                                             candidate.hslLightness, background, 3)
+    if (lightness < 0) return Color.accent
+    return Qt.hsla(candidate.hslHue, candidate.hslSaturation, lightness, 1)
+  }
+
+  // Vetted here rather than in the service: this panel's background is not the
+  // overlay's, and the same colour is not equally readable on both.
+  readonly property color artAccent: root.svc
+    ? root.tintFrom(root.svc.artColor, Color.popups.background) : Color.accent
+
   implicitHeight: column.implicitHeight
 
   Column {
@@ -152,6 +169,7 @@ Item {
       width: parent.width
       visible: root.hasTrack
       svc: root.svc
+      accent: root.artAccent
       foreground: root.foreground
       fontFamily: root.fontFamily
     }
@@ -178,7 +196,7 @@ Item {
             required property var modelData
             anchors.verticalCenter: parent.verticalCenter
             text: button.modelData.glyph
-            color: buttonHover.containsMouse ? Color.accent : root.foreground
+            color: buttonHover.containsMouse ? root.artAccent : root.foreground
             font.family: root.fontFamily
             font.pixelSize: button.modelData.action === "playPause"
                             ? Style.font.heading : Style.font.subtitle
@@ -211,7 +229,7 @@ Item {
         anchors.verticalCenter: parent.verticalCenter
         visible: root.svc && root.svc.isTidalTrack
         text: root.svc && root.svc.favorite ? "\uf004" : "\uf08a"
-        color: root.svc && root.svc.favorite ? Color.accent
+        color: root.svc && root.svc.favorite ? root.artAccent
                : (heartHover.containsMouse ? root.foreground : Color.muted)
         font.family: root.fontFamily
         font.pixelSize: Style.font.bodySmall
@@ -232,7 +250,7 @@ Item {
         anchors.verticalCenter: parent.verticalCenter
         visible: root.svc && root.svc.isTidalTrack
         text: "\uf1b8"
-        color: radioHover.containsMouse ? Color.accent : Color.muted
+        color: radioHover.containsMouse ? root.artAccent : Color.muted
         font.family: root.fontFamily
         font.pixelSize: Style.font.bodySmall
 

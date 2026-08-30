@@ -351,6 +351,7 @@ Item {
     Qt.callLater(root.refreshFormat)
     Qt.callLater(root.refreshFavorite)
     Qt.callLater(root.refreshLyrics)
+    Qt.callLater(root.refreshPalette)
   }
 
   onTrackUriChanged: {
@@ -361,6 +362,7 @@ Item {
     root.favorite = false
     root.format = null
     root.lyrics = null
+    root.artPalette = null
     root.refreshTrackDetail()
   }
 
@@ -370,6 +372,39 @@ Item {
   onCompanionAvailableChanged: {
     if (root.companionAvailable && root.trackUri !== "") root.refreshTrackDetail()
   }
+
+  // ---- artwork palette -----------------------------------------------------
+  //
+  // What the sleeve looks like, so surfaces drawn over or beside it can react:
+  // text needs a heavier wash under it when the cover is white, and a spectrum
+  // analyser beside a record may as well be the colour of that record.
+  property var artPalette: null
+
+  function refreshPalette() {
+    if (!companionAvailable || !isTidalTrack) { root.artPalette = null; return }
+    var forUri = trackUri
+    Tidal.palette(forUri, function(p) {
+      if (!root.alive || forUri !== root.trackUri) return
+      root.artPalette = p
+    }, function() {
+      if (!root.alive || forUri !== root.trackUri) return
+      root.artPalette = null
+    })
+  }
+
+  // 0 (black sleeve) to 1 (white sleeve).
+  readonly property real artLuma: artPalette ? Number(artPalette.luma) || 0 : 0
+  readonly property bool artIsLight: artPalette ? artPalette.isLight === true : false
+
+  // The sleeve's own colour, or "" for a cover that has none -- black and white
+  // artwork reports nothing rather than a washed-out grey.
+  //
+  // Reported raw, not vetted. This object is headless and holds no opinion
+  // about the theme; whether the colour is readable depends on the surface it
+  // lands on, and the mini player's background is not the overlay's. Each view
+  // decides with Design.readableOr().
+  readonly property string artColor: artPalette && artPalette.color
+    ? String(artPalette.color) : ""
 
   // ---- favorites -----------------------------------------------------------
 
@@ -575,6 +610,8 @@ Item {
       lyricsSynced: root.lyrics && root.lyrics.synced ? root.lyrics.synced.length : 0,
       lyricsPlain: root.lyrics && root.lyrics.plain ? root.lyrics.plain.length : 0,
       hiRes: root.isHiRes,
+      artColor: root.artColor,
+      artLuma: root.artLuma,
       position: root.position,
       length: root.length
     })

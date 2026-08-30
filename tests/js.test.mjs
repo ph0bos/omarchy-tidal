@@ -290,3 +290,62 @@ test("withGaps leaves a prompt first line alone", () => {
   const prompt = [{ time_ms: 1200, text: "straight in" }];
   assert.equal(Lrc.withGaps(prompt, 10000).length, 1);
 });
+
+// ---- Design.js: contrast ----------------------------------------------------
+
+const rgb = (r, g, b) => ({ r, g, b });
+
+test("luminance and contrast follow the WCAG definitions", () => {
+  assert.equal(Design.luminance(rgb(0, 0, 0)), 0);
+  assert.equal(Design.luminance(rgb(1, 1, 1)), 1);
+  assert.equal(Design.contrast(rgb(1, 1, 1), rgb(0, 0, 0)), 21);
+  assert.equal(Design.contrast(rgb(0.5, 0.5, 0.5), rgb(0.5, 0.5, 0.5)), 1);
+});
+
+test("contrast is symmetric", () => {
+  const a = rgb(0.1, 0.1, 0.15);
+  const b = rgb(0.66, 0.69, 0.84);
+  assert.equal(Design.contrast(a, b).toFixed(4), Design.contrast(b, a).toFixed(4));
+});
+
+test("readableOr keeps an artwork colour only when it can be seen", () => {
+  const dark = rgb(0.1, 0.11, 0.15);       // a dark theme's background
+  const theme = rgb(0.48, 0.64, 0.97);     // the theme accent, the fallback
+  const bright = rgb(0.9, 0.5, 0.2);       // an orange sleeve: fine on dark
+  const muddy = rgb(0.13, 0.14, 0.17);     // nearly the background itself
+
+  assert.equal(Design.readableOr(bright, dark, theme), bright);
+  assert.equal(Design.readableOr(muddy, dark, theme), theme);
+  // Nothing extracted at all falls back too.
+  assert.equal(Design.readableOr(null, dark, theme), theme);
+});
+
+test("hslToRgb round-trips the primaries", () => {
+  const near = (a, b) => Math.abs(a - b) < 0.001;
+  const red = Design.hslToRgb(0, 1, 0.5);
+  assert.ok(near(red.r, 1) && near(red.g, 0) && near(red.b, 0));
+  const grey = Design.hslToRgb(0.5, 0, 0.5);
+  assert.ok(near(grey.r, 0.5) && near(grey.g, 0.5) && near(grey.b, 0.5));
+});
+
+test("contrastLightness lifts a hue until it reads, keeping the hue", () => {
+  const panel = { r: 0.102, g: 0.106, b: 0.149 };   // a dark theme panel
+  // GUNSHIP's Dark All Day: #9e4061, which fails at 3:1 as extracted.
+  const hue = 0.936, saturation = 0.42, lightness = 0.435;
+  assert.ok(Design.contrast(Design.hslToRgb(hue, saturation, lightness), panel) < 3);
+
+  const lifted = Design.contrastLightness(hue, saturation, lightness, panel, 3);
+  assert.ok(lifted > lightness, "should have been lightened");
+  assert.ok(Design.contrast(Design.hslToRgb(hue, saturation, lifted), panel) >= 3);
+});
+
+test("contrastLightness darkens instead on a light background", () => {
+  const paper = { r: 0.94, g: 0.94, b: 0.95 };
+  const lifted = Design.contrastLightness(0.6, 0.5, 0.85, paper, 3);
+  assert.ok(lifted < 0.85);
+});
+
+test("contrastLightness gives up rather than returning something unreadable", () => {
+  // Nothing contrasts 21:1 with mid-grey.
+  assert.equal(Design.contrastLightness(0.3, 0.5, 0.5, { r: 0.5, g: 0.5, b: 0.5 }, 21), -1);
+});

@@ -58,3 +58,70 @@ function clock(seconds) {
   var s = total % 60
   return m + ":" + (s < 10 ? "0" + s : s)
 }
+
+// ---- contrast ---------------------------------------------------------------
+//
+// The interface draws over album art, and album art is not under our control:
+// a white sleeve lifts a blurred backdrop until muted text vanishes into it.
+// These are the WCAG definitions, so "is this readable" can be a measurement
+// rather than an opinion. Channels are 0..1, which is what QML colours use.
+
+function _channel(value) {
+  return value <= 0.04045 ? value / 12.92 : Math.pow((value + 0.055) / 1.055, 2.4)
+}
+
+// Relative luminance of a QML colour, 0 (black) to 1 (white).
+function luminance(color) {
+  if (!color) return 0
+  return 0.2126 * _channel(color.r) + 0.7152 * _channel(color.g) + 0.0722 * _channel(color.b)
+}
+
+// Contrast between two QML colours: 1 (identical) to 21 (black on white).
+// WCAG asks 4.5 for body text and 3 for large text or a meaningful graphic.
+function contrast(first, second) {
+  var a = luminance(first)
+  var b = luminance(second)
+  return ((Math.max(a, b) + 0.05) / (Math.min(a, b) + 0.05))
+}
+
+// HSL to RGB, so a colour can be lightened without leaving its hue behind.
+// Written out rather than reached for through Qt, so the search below stays a
+// pure function and can be tested.
+function hslToRgb(hue, saturation, lightness) {
+  var c = (1 - Math.abs(2 * lightness - 1)) * saturation
+  var x = c * (1 - Math.abs(((hue * 6) % 2) - 1))
+  var m = lightness - c / 2
+  var i = Math.floor(hue * 6) % 6
+  var table = [[c, x, 0], [x, c, 0], [0, c, x], [0, x, c], [x, 0, c], [c, 0, x]]
+  var t = table[i < 0 ? i + 6 : i]
+  return { r: t[0] + m, g: t[1] + m, b: t[2] + m }
+}
+
+// The lightness at which a hue first reads against a background, or -1 when no
+// lightness does.
+//
+// A colour taken from artwork often lands close to the surface it is drawn on:
+// GUNSHIP's Dark All Day gives #9e4061, which measures 2.73:1 against a dark
+// panel where a control needs 3. Falling back to the theme's accent throws the
+// record away for the sake of a few percent of luminance; lifting the same hue
+// until it passes keeps the sleeve's identity and the legibility both.
+function contrastLightness(hue, saturation, lightness, background, minimum) {
+  var target = minimum || 3
+  var toward = luminance(background) < 0.5 ? 1 : -1
+  var step = 0.04
+  var value = lightness
+  for (var i = 0; i <= 24; i++) {
+    if (contrast(hslToRgb(hue, saturation, value), background) >= target) return value
+    value += toward * step
+    if (value > 0.97 || value < 0.05) break
+  }
+  return -1
+}
+
+// A colour taken from artwork is only worth using if it can be seen against
+// what it is drawn on. `minimum` defaults to 3, the threshold WCAG asks of a
+// user interface component.
+function readableOr(candidate, background, fallback, minimum) {
+  if (!candidate) return fallback
+  return contrast(candidate, background) >= (minimum || 3) ? candidate : fallback
+}

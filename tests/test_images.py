@@ -155,3 +155,51 @@ def test_prune_leaves_a_cache_that_already_fits(tmp_path):
 
 def test_prune_copes_with_a_cache_that_does_not_exist(tmp_path):
     assert images.prune(tmp_path / "nothing-here") == 0
+
+
+# ---- palette ---------------------------------------------------------------
+
+palette = load("palette")
+
+
+def test_luminance_spans_black_to_white():
+    assert palette.relative_luminance((0, 0, 0)) == 0
+    assert palette.relative_luminance((255, 255, 255)) == 1
+    assert palette.contrast_ratio((255, 255, 255), (0, 0, 0)) == 21
+
+
+def test_a_greyscale_sleeve_has_no_colour():
+    # Bring Me The Horizon's L.I.V.E. cover is black shapes on white; tinting
+    # the interface grey would be worse than leaving the theme alone.
+    pixels = [(250, 250, 250)] * 200 + [(12, 12, 12)] * 56
+    result = palette.analyse_pixels(pixels)
+    assert result["color"] is None
+    assert result["isLight"] is True
+
+
+def test_a_coloured_sleeve_reports_its_hue():
+    result = palette.analyse_pixels([(230, 120, 30)] * 180 + [(20, 20, 20)] * 76)
+    assert result["color"].startswith("#")
+    hue, saturation, value = palette.to_hsv(
+        tuple(int(result["color"][i:i + 2], 16) for i in (1, 3, 5)))
+    assert 20 < hue < 45          # still orange
+    assert saturation >= 0.55     # lifted into a usable accent
+    assert result["isLight"] is False
+
+
+def test_the_dominant_hue_wins_rather_than_the_average():
+    # Half red, half blue: averaging gives purple, a colour in neither half.
+    pixels = [(220, 40, 40)] * 140 + [(40, 60, 220)] * 116
+    hue, _, _ = palette.to_hsv(
+        tuple(int(palette.analyse_pixels(pixels)["color"][i:i + 2], 16) for i in (1, 3, 5)))
+    assert hue < 30 or hue > 330  # red, not purple
+
+
+def test_hsv_round_trips():
+    for rgb in [(230, 120, 30), (40, 60, 220), (12, 200, 90)]:
+        hue, saturation, value = palette.to_hsv(rgb)
+        assert max(abs(a - b) for a, b in zip(palette.from_hsv(hue, saturation, value), rgb, strict=True)) <= 2
+
+
+def test_analyse_pixels_copes_with_nothing():
+    assert palette.analyse_pixels([])["color"] is None

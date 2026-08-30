@@ -48,6 +48,28 @@ Item {
                                          Color.menu.background.b, 1)
   readonly property color onArt: Color.menu.text
 
+  // The sleeve's colour, lifted until it reads against this surface. Falls back
+  // to the theme's accent only when no lightness of that hue would do.
+  function tintFrom(colour, background) {
+    if (!colour || colour === "") return Color.accent
+    var candidate = Qt.color(colour)
+    if (Design.contrast(candidate, background) >= 3) return candidate
+    var lightness = Design.contrastLightness(candidate.hslHue, candidate.hslSaturation,
+                                             candidate.hslLightness, background, 3)
+    if (lightness < 0) return Color.accent
+    return Qt.hsla(candidate.hslHue, candidate.hslSaturation, lightness, 1)
+  }
+
+  // The colour this view paints artwork-adjacent things with.
+  readonly property color artAccent: root.svc
+    ? root.tintFrom(root.svc.artColor, Color.menu.background) : Color.accent
+
+  // How light the sleeve is, which decides how much wash the text needs. A
+  // white cover lifts the blurred backdrop until muted metadata disappears
+  // into it -- measured at 1.15:1 against a Bring Me The Horizon sleeve, where
+  // 4.5:1 is the readable floor.
+  readonly property real artLuma: root.svc ? root.svc.artLuma : 0
+
   // Optical alignment between the sleeve and the column beside it.
   //
   // A picture's top is a hard edge; a line of text's top is the top of its line
@@ -193,15 +215,25 @@ Item {
     // 128 pixels a side is a fortieth of the memory of the full sleeve and
     // looks exactly the same once the blur is on it.
     decodeSize: 128
-    opacity: 0.28
+    // A bright sleeve is shown less of, because everything drawn on top has to
+    // stay legible over it.
+    opacity: 0.28 - 0.16 * root.artLuma
     visible: source !== ""
   }
 
   Rectangle {
     anchors.fill: parent
+    // The wash under the text grows with the sleeve's brightness, so the
+    // metadata keeps its contrast whatever the cover happens to be.
     gradient: Gradient {
-      GradientStop { position: 0.0; color: Qt.rgba(root.scrim.r, root.scrim.g, root.scrim.b, 0.15) }
-      GradientStop { position: 1.0; color: Qt.rgba(root.scrim.r, root.scrim.g, root.scrim.b, 0.55) }
+      GradientStop {
+        position: 0.0
+        color: Qt.rgba(root.scrim.r, root.scrim.g, root.scrim.b, 0.15 + 0.3 * root.artLuma)
+      }
+      GradientStop {
+        position: 1.0
+        color: Qt.rgba(root.scrim.r, root.scrim.g, root.scrim.b, 0.55 + 0.42 * root.artLuma)
+      }
     }
   }
 
@@ -317,7 +349,13 @@ Item {
           text: root.svc ? root.svc.artist : ""
           elide: Text.ElideRight
           horizontalAlignment: root.face === "artwork" ? Text.AlignHCenter : Text.AlignLeft
-          color: Color.muted
+          // Foreground dimmed, not `muted`: muted is a colour for the theme's
+          // own chrome, and over a bright sleeve it measured 1.15:1.
+          color: root.foreground
+          // Dimming secondary text is a choice worth making when the backdrop
+          // allows it, and worth giving up when it does not: over a white
+          // sleeve this rises until the line is readable again.
+          opacity: 0.78 + 0.22 * root.artLuma
           font.family: root.fontFamily
           font.pixelSize: root.face === "artwork" ? Style.font.subtitle : Style.font.bodySmall
         }
@@ -329,8 +367,8 @@ Item {
           text: root.svc ? root.svc.album : ""
           elide: Text.ElideRight
           horizontalAlignment: root.face === "artwork" ? Text.AlignHCenter : Text.AlignLeft
-          color: Color.muted
-          opacity: 0.7
+          color: root.foreground
+          opacity: 0.6 + 0.35 * root.artLuma
           font.family: root.fontFamily
           font.pixelSize: Style.font.caption
         }
@@ -348,6 +386,9 @@ Item {
         segments: 16
         columnGap: 3
         segmentGap: 2
+        // Beside the record, in the record's own colour.
+        litColor: root.artAccent
+        peakColor: root.artAccent
         active: root.visible && root.visualizerEnabled && root.face === "artwork"
                 && root.svc && root.svc.playing
         binPath: root.pluginDir !== "" ? root.pluginDir + "/bin/omarchy-tidal-cava" : ""

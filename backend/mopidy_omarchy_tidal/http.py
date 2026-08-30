@@ -29,6 +29,7 @@ import tornado.web
 
 from . import images as images_mod
 from . import lyrics as lyrics_mod
+from . import palette as palette_mod
 from . import text as text_mod
 from .session import SessionProvider, entity_id, track_id
 
@@ -564,6 +565,92 @@ def _content_type(payload: bytes) -> str:
     return "image/jpeg"
 
 
+async def _artwork_bytes(handler, uri: str, url: str, size: int):
+    """The bytes of a piece of artwork, from disk if they are already here.
+
+    Shared by /art, which serves them, and /palette, which measures them: both
+    want the same file and neither should fetch it twice.
+    """
+    key = url or f"{uri}@{size}"
+    root = images_mod.cache_dir()
+    path = images_mod.path_for(key, root)
+
+    if path.is_file():
+        payload = await handler.run(path.read_bytes)
+        images_mod.touch(path)
+        return payload, url
+
+    if not url:
+        session = handler.session_or_503()
+        if session is None:
+            return None, ""
+        described = await handler.describe(session, uri, size)
+        url = (described or {}).get("image") or ""
+        if not url:
+            return None, ""
+        path = images_mod.path_for(url or key, root)
+        if path.is_file():
+            payload = await handler.run(path.read_bytes)
+            images_mod.touch(path)
+            return payload, url
+
+    host = (urlparse(url).hostname or "").lower()
+    if host not in _ART_HOSTS:
+        return None, url
+
+    try:
+        response = await tornado.httpclient.AsyncHTTPClient().fetch(
+            url, connect_timeout=5, request_timeout=15)
+    except Exception as exc:
+        logger.debug("omarchy-tidal: could not fetch art %s: %s", url, exc)
+        return None, url
+
+    await handler.run(images_mod.write_atomic, path, response.body)
+    return response.body, url
+
+
+class PaletteHandler(BaseHandler):
+    """How light a sleeve is, and what colour it is.
+
+    The interface draws text over a blurred cover and a spectrum analyser
+    beside it. Both need to know what the cover looks like: a white sleeve
+    makes muted metadata unreadable, and an analyser in the theme's accent
+    ignores the record entirely.
+    """
+
+    async def get(self) -> None:
+        uri = self.get_argument("uri", "")
+        url = self.get_argument("url", "")
+        if not uri and not url:
+            self.set_status(400)
+            self.write_json({"error": "expected a uri or a url"})
+            return
+
+        cache_key = "palette:" + (url or uri)
+        hit, cached = images_mod.cached(cache_key)
+        if hit:
+            self.write_json(cached or {"luma": 0.0, "color": None, "isLight": False})
+            return
+
+        payload, _resolved = await _artwork_bytes(self, uri, url, 320)
+        if payload is None:
+            self.set_status(404)
+            self.write_json({"error": "no artwork to measure"})
+            return
+
+        # Decoding happens off the loop: it is a 16x16 scale of a jpeg, but it
+        # is still a decode.
+        result = await tornado.ioloop.IOLoop.current().run_in_executor(
+            _ART_EXECUTOR, palette_mod.analyse, payload)
+        if result is None:
+            self.set_status(415)
+            self.write_json({"error": "could not read that artwork"})
+            return
+
+        images_mod.remember(cache_key, result)
+        self.write_json(result)
+
+
 class ArtHandler(BaseHandler):
     """Cover art for a URI, cached on disk.
 
@@ -925,6 +1012,7 @@ def factory(config, core):
         (r"/album", AlbumHandler, kwargs),
         (r"/format", FormatHandler, kwargs),
         (r"/art", ArtHandler, kwargs),
+        (r"/palette", PaletteHandler, kwargs),
         (r"/entity", EntityHandler, kwargs),
         (r"/library", LibraryHandler, kwargs),
         (r"/playlists", PlaylistsHandler, kwargs),

@@ -77,8 +77,9 @@ Item {
   // whole card, not inside this pane.
   signal addToPlaylist(string uri, string title)
 
-  // The quick menu is the host's, so this only asks for it.
+  // The quick menu and the keyboard map are the host's, so this only asks.
   signal menuRequested()
+  signal shortcutsRequested()
 
   // Deep link, delivered as bound state rather than a method call so it cannot
   // race the Loader. The serial makes a repeat request of the same uri count.
@@ -796,6 +797,12 @@ Item {
     // not depend on which pane happens to be showing.
     if (event.key === Qt.Key_M) {
       root.menuRequested()
+      event.accepted = true; return
+    }
+
+    // The question mark, where every application that has one keeps it.
+    if (event.key === Qt.Key_Question) {
+      root.shortcutsRequested()
       event.accepted = true; return
     }
 

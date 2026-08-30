@@ -42,6 +42,7 @@ Item {
       state: root.repeatMode, enabled: true },
     { glyph: "\uf28b", label: "Remove played tracks", action: "consume",
       state: root.consuming ? "on" : "off", enabled: true },
+    { glyph: "\uf11c", label: "Keyboard shortcuts", action: "keys", state: "?", enabled: true },
     { glyph: "\uf017", label: "Sleep timer",       action: "sleep",
       state: root.sleepLabel, enabled: true }
   ]

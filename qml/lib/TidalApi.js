@@ -112,6 +112,12 @@ function album(uri, onOk, onErr) {
 // -> { codec, bit_depth, sample_rate, quality, is_hires }
 function streamFormat(onOk, onErr) { _request("GET", "/format", null, onOk, onErr) }
 
+// What the current sleeve looks like: how light it is, and its colour.
+// -> { luma: 0..1, color: "#rrggbb" | null, isLight: bool }
+function palette(uri, onOk, onErr) {
+  _request("GET", "/palette" + _q({ uri: uri }), null, onOk, onErr)
+}
+
 // A playlist page: art, creator, description and its tracks.
 function playlistPage(uri, onOk, onErr) {
   _request("GET", "/playlist" + _q({ uri: uri }), null, onOk, onErr)

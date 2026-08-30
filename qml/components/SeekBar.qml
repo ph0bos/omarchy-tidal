@@ -19,6 +19,10 @@ Item {
   property color foreground: Color.menu.text
   property string fontFamily: Style.font.menuFamily
   property bool showTimes: true
+
+  // Usually the theme's accent; the mini player passes the sleeve's colour, so
+  // the playhead belongs to the record it is playing.
+  property color accent: Color.accent
   property int railHeight: Style.space(4)
 
   readonly property real position: svc ? svc.position : 0
@@ -95,7 +99,7 @@ Item {
         anchors.bottom: parent.bottom
         width: parent.width * root.progress
         radius: parent.radius
-        color: Color.accent
+        color: root.accent
       }
     }
 
@@ -105,7 +109,7 @@ Item {
       width: seekMouse.containsMouse || root.scrubbing ? Style.space(11) : Style.space(8)
       height: width
       radius: width / 2
-      color: Color.accent
+      color: root.accent
       anchors.verticalCenter: rail.verticalCenter
       x: Math.max(0, Math.min(rail.width, rail.width * root.progress)) - width / 2
       visible: root.length > 0

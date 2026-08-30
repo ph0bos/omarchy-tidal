@@ -88,6 +88,15 @@ level. `FontMetrics.ascent - FontMetrics.capitalHeight` is the gap, and it is
 measured rather than nudged -- see the now-playing eyebrow and the wordmark in
 the overlay header.
 
+**Text over album art needs measuring, not guessing.** The companion's
+`/palette` reports a cover's luminance and dominant colour (GdkPixbuf, which
+PyGObject already brings; there is no Pillow here). The now-playing wash and
+the dimming of secondary text scale with that luminance, because a white sleeve
+put the artist line at 1.15:1 where 4.5:1 is the floor. A colour taken from
+artwork is lifted in lightness until it clears 3:1 rather than being swapped for
+the theme accent -- `Design.contrastLightness()` -- and a greyscale cover
+reports no colour at all, which is the honest answer.
+
 **Nothing is hardcoded black or white.** Omarchy ships light themes, so even
 the washes over album art derive from `Color.menu.background` and
 `Color.menu.text`. A literal `#000000` scrim is a bug on half the themes.

@@ -140,6 +140,16 @@ before the first line is marked the same way.
 `I` gives you the record instead — year, length, credits, editorial review, and
 exactly what is coming out of the speakers.
 
+**The view reads the sleeve.** The companion measures each cover — how light it
+is, and what colour it is — and the view uses both. A white cover used to lift
+the blurred backdrop until the artist and album lines measured 1.15:1 against
+it, well under the 4.5:1 that text needs; the wash and the dimming now yield to
+the artwork, which puts those lines at 7.1:1 and 6.4:1 on the same cover. The
+spectrum analyser and the mini player's playhead take the record's own colour,
+lightened only as far as it takes to clear 3:1 — and a black-and-white sleeve
+reports no colour at all, so the theme's accent stands rather than tinting the
+interface grey.
+
 ### Playlists
 
 Press `P` on any track — in search results, in a library list, in the queue — and
@@ -194,6 +204,7 @@ silently resamples every hi-res stream before it reaches your DAC.
 | `SUPER + SHIFT + M` | Now playing and lyrics |
 | `SUPER + ALT + M` | Favourite current track |
 | `SUPER + CTRL + M` | Start radio from current track |
+| `?` (in the player) | Every shortcut, grouped by where it works |
 
 Inside the player: `/` search · `↑`/`↓` move · `Enter` play · `Shift+Enter`
 queue · `→` open · `←`/`Backspace` back · `Tab` switch pane · `Space`
@@ -202,7 +213,9 @@ play/pause · `Esc` close.
 In the queue, `Enter` jumps to that track rather than starting a new queue from
 it, `Ctrl`+`↑`/`↓` carries a row up or down the running order, `Delete` takes it
 out, and **Clear** in the header empties the lot. `P` on any track asks which
-playlist to file it in, and `M` opens the quick menu.
+playlist to file it in, `M` opens the quick menu, and **`?` shows the whole map**
+— grouped by where each key works, because the arrows mean different things in a
+list, on the Home grid and in the queue.
 
 On Home the arrows walk the artwork grid — up and down between shelves, left and
 right along one — and `Enter` opens a card while `Shift+Enter` starts it, which

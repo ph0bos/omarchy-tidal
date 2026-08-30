@@ -151,6 +151,15 @@ Item {
 
   property bool menuOpen: false
 
+  // The keyboard map, raised over whatever surface asked for it.
+  property bool shortcutsOpen: false
+
+  function toggleShortcuts() {
+    root.menuOpen = false
+    root.shortcutsOpen = !root.shortcutsOpen
+    Qt.callLater(root.shortcutsOpen ? shortcutSheet.forceActiveFocus : root.focusView)
+  }
+
   // "Add to playlist", raised over whatever surface asked for it.
   property bool pickerOpen: false
   property string pickerUri: ""
@@ -212,6 +221,7 @@ Item {
       case "consume":  root.svc.toggleConsume(); break
       case "sleep":    root.svc.cycleSleep(); break
       case "playlist": root.addToPlaylist(root.svc.trackUri, root.svc.title); break
+      case "keys":     root.toggleShortcuts(); break
     }
   }
 
@@ -260,6 +270,11 @@ Item {
         }
         if (event.key === Qt.Key_M) {
           root.menuOpen = !root.menuOpen
+          event.accepted = true
+          return
+        }
+        if (event.key === Qt.Key_Question) {
+          root.toggleShortcuts()
           event.accepted = true
           return
         }
@@ -436,6 +451,7 @@ Item {
             deepLinkSerial: root.deepLinkSerial
             onAddToPlaylist: function(uri, title) { root.addToPlaylist(uri, title) }
             onMenuRequested: root.menuOpen = !root.menuOpen
+            onShortcutsRequested: root.toggleShortcuts()
           }
         }
 
@@ -487,6 +503,19 @@ Item {
           visible: root.menuOpen
           z: 90
           onClicked: root.menuOpen = false
+        }
+
+        ShortcutSheet {
+          id: shortcutSheet
+          anchors.fill: parent
+          z: 210
+          visible: root.shortcutsOpen
+          foreground: root.foreground
+          fontFamily: root.fontFamily
+          onClosed: {
+            root.shortcutsOpen = false
+            Qt.callLater(root.focusView)
+          }
         }
 
         // Above the card's own content, and focused while it is up.
