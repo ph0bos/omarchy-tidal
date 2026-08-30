@@ -118,7 +118,16 @@ Item {
     Qt.callLater(root.syncPosition)
   }
   readonly property real length: player && player.lengthSupported ? player.length : 0
-  readonly property bool hasTrack: connected && (title !== "" || artist !== "")
+  // Stopped counts as nothing playing, whatever the metadata still says.
+  //
+  // MPRIS keeps the last track's title and artist after a stop, so testing the
+  // metadata alone meant `hasTrack` stayed true for the rest of the session and
+  // the bar widget never took itself out of the bar. The player's own state is
+  // the honest answer to "is there anything here".
+  readonly property bool stopped:
+    player ? player.playbackState === MprisPlaybackState.Stopped : true
+  readonly property bool hasTrack:
+    connected && !stopped && (title !== "" || artist !== "")
 
   // Mopidy publishes the backend URI (e.g. "tidal:track:12345") as xesam:url.
   // Favorites, lyrics, and radio all key off this.
@@ -298,6 +307,34 @@ Item {
   function cancelSleep() {
     root.sleepEndsAt = 0
     root.sleepAfterTrack = false
+  }
+
+  // Put the app away.
+  //
+  // There was no way to do this from inside it. The panel closed with Escape,
+  // but the bar widget stayed -- Mopidy keeps the last track loaded after a
+  // pause, so the widget had something to display all day and only left when
+  // the queue was emptied, which is not a thing anyone thinks to do in order to
+  // quit. So: stop, empty the queue, close the panel. The widget has nothing
+  // left to show and takes itself out of the bar.
+  //
+  // Deliberately not `omarchy plugin disable`. That unloads the plugin, needs a
+  // shell restart, and cannot be undone from a surface that no longer exists --
+  // a quit button you cannot come back from is a trap. `SUPER+M`, the Apps
+  // entry, or the bar widget bring it straight back.
+  function quit() {
+    Rpc.stop(function() {
+      if (!root.alive) return
+      Rpc.clear(function() {
+        if (!root.alive) return
+        root.closeSurfaces()
+      }, function() { if (root.alive) root.closeSurfaces() })
+    }, function() {
+      if (!root.alive) return
+      Rpc.clear(null, null)
+      root.closeSurfaces()
+    })
+    return true
   }
 
   // Off -> 15 -> 30 -> 45 -> 60 -> end of track -> off. One entry in the menu
@@ -636,6 +673,19 @@ Item {
     root.miniPlayers = next
   }
 
+  // Every surface this plugin can have open, shut.
+  function closeSurfaces() {
+    for (var i = 0; i < root.miniPlayers.length; i++) {
+      // A widget destroyed by a hot reload can still be sitting in the list;
+      // reading it throws rather than returning null.
+      try {
+        var widget = root.miniPlayers[i]
+        if (widget && typeof widget.close === "function") widget.close()
+      } catch (e) { /* gone with its bar */ }
+    }
+    if (root.shell && typeof root.shell.hide === "function") root.shell.hide(root.pluginId)
+  }
+
   function toggleMini() {
     for (var i = 0; i < root.miniPlayers.length; i++) {
       // A widget destroyed by a hot reload can still be sitting in the list;
@@ -728,6 +778,7 @@ Item {
     function sleepOff(): string { root.cancelSleep(); return "ok" }
     function notifications(): string { return root.setNotify(!root.notifyOnTrackChange) ? "ok" : "unhandled" }
     function announce(): string { root.announceTrack(); return "ok" }
+    function quit(): string { return root.quit() ? "ok" : "unhandled" }
     function playPause(): string { return root.playPause() ? "ok" : "unhandled" }
     function next(): string { return root.next() ? "ok" : "unhandled" }
     function previous(): string { return root.previous() ? "ok" : "unhandled" }

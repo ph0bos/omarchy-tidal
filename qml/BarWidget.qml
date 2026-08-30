@@ -39,6 +39,10 @@ BarWidget {
   // who puts this in the right-hand cluster, where a title that changes width
   // every few minutes would shove the status icons around.
   readonly property bool showLabel: setting("showLabel", true)
+  // Off by default: a widget that disappears every time you pause is a widget
+  // you cannot use to un-pause. On for anyone who wants the bar back the moment
+  // the music stops.
+  readonly property bool hideWhenPaused: setting("hideWhenPaused", false)
 
   // Art or mark, never both: two logos for one thing.
   //
@@ -108,7 +112,15 @@ BarWidget {
   // display should get out of the bar. Without one it is a control -- the way
   // into the mini player -- and a control that vanishes when the music stops is
   // a control you cannot use to start any.
-  readonly property bool idleHidden: !hasTrack && showLabel
+  //
+  // "Nothing to display" used to mean no track at all, which is rarer than it
+  // sounds: Mopidy keeps the last track loaded after you pause, so the widget
+  // sat in the bar all day and only left when the queue was emptied. That is a
+  // reasonable default for a now-playing display and a poor one if you wanted
+  // the bar back, so `hideWhenPaused` says which you meant -- and it applies in
+  // compact mode too, because someone who asked for it asked for it.
+  readonly property bool idleHidden:
+    (!hasTrack && showLabel) || (hideWhenPaused && !playing)
 
   visible: !idleHidden
   implicitWidth: idleHidden ? 0 : (vertical ? barSize : content.implicitWidth + Style.space(14))

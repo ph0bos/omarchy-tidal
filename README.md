@@ -108,6 +108,20 @@ what it says.
 email, which is why this screenshot was taken against stand-in values rather
 than redacted afterwards — nothing personal was ever written to the file.)*
 
+**Quit** sits beside *Sign out*, and is also in the quick menu (`M`) and on
+`omarchy-shell tidal quit`. It stops playback, empties the queue and closes
+every surface — which takes the bar widget with it, since it has nothing left
+to display. `SUPER+M`, the Apps entry or the widget bring it all back.
+
+It deliberately does not disable the plugin: that needs a shell restart and
+cannot be undone from a surface that no longer exists. If you want it gone
+until you say otherwise:
+
+```bash
+omarchy plugin disable quickshell.tidal   # takes the widget off the bar
+systemctl --user stop mopidy              # and stops the backend
+```
+
 Before it is set up, the same surface is the sign-in wizard.
 
 The plugin's own options are kept in `~/.config/omarchy-tidal/settings.json`,
@@ -298,6 +312,15 @@ In compact mode the widget also stays put when nothing is playing. A display
 with nothing to display should get out of the bar; a control you cannot use to
 start any music should not.
 
+**Hide when paused** decides which of those you get. Off by default: the widget
+leaves the bar only when playback has stopped, so pausing keeps the controls
+where you left them. Turn it on and the bar is yours again the moment the music
+stops. Either way it is back the next time something plays.
+
+(This used to be less of a choice than it looked. "Nothing to display" meant no
+track loaded at all — and Mopidy keeps the last one loaded after a pause, so the
+widget sat in the bar all day and only left if you emptied the queue.)
+
 ### Sleep timer
 
 In the quick menu, cycling 15, 30, 45, 60 minutes and then "end of track" — the
@@ -375,6 +398,7 @@ omarchy-shell tidal sleepOff      # cancel it
 omarchy-shell tidal settings      # settings, or the sign-in wizard
 omarchy-shell tidal notifications # announce each track, or stop
 omarchy-shell tidal announce      # announce this one now
+omarchy-shell tidal quit          # stop, empty the queue, close everything
 omarchy-shell tidal playPause | next | previous
 ```
 

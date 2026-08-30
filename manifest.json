@@ -2,7 +2,7 @@
   "schemaVersion": 1,
   "id": "quickshell.tidal",
   "name": "TIDAL",
-  "version": "0.8.3",
+  "version": "0.8.4",
   "author": "ph0bos",
   "description": "Hi-res lossless TIDAL inside the Omarchy shell — 24-bit/192kHz FLAC, a personalised home page, artist and album pages, synced lyrics, and a mini player in the bar.",
   "kinds": [
@@ -26,7 +26,8 @@
       "showQualityBadge": false,
       "maxLabelWidth": 260,
       "scrollLongLabels": true,
-      "showLabel": true
+      "showLabel": true,
+      "hideWhenPaused": false
     },
     "schema": [
       {
@@ -48,6 +49,11 @@
         "key": "scrollLongLabels",
         "type": "bool",
         "label": "Scroll long titles"
+      },
+      {
+        "key": "hideWhenPaused",
+        "type": "bool",
+        "label": "Hide when paused"
       }
     ]
   },

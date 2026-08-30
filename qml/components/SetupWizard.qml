@@ -637,12 +637,29 @@ Item {
         text: "Press Super+M to search, or Super+Shift+M for lyrics."
       }
 
-      Button {
-        text: "Sign out"
-        horizontalPadding: 0
-        foreground: Color.muted
-        accent: Color.accent
-        onClicked: root.signOut()
+      Row {
+        spacing: Style.space(18)
+
+        Button {
+          text: "Sign out"
+          horizontalPadding: 0
+          foreground: Color.muted
+          accent: Color.accent
+          onClicked: root.signOut()
+        }
+
+        // Not "disable the plugin": that needs a shell restart and cannot be
+        // undone from a surface that no longer exists. This stops the music,
+        // empties the queue and closes every surface, which takes the bar
+        // widget with it. Super+M brings it all back.
+        Button {
+          text: "Quit"
+          horizontalPadding: 0
+          foreground: Color.muted
+          accent: Color.accent
+          visible: root.svc !== null
+          onClicked: { if (root.svc) root.svc.quit() }
+        }
       }
     }
   }

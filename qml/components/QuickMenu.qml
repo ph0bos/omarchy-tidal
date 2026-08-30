@@ -45,7 +45,12 @@ Item {
     { glyph: "\uf11c", label: "Keyboard shortcuts", action: "keys", state: "?", enabled: true },
     { glyph: "\uf013", label: "Settings",           action: "settings", state: "", enabled: true },
     { glyph: "\uf017", label: "Sleep timer",       action: "sleep",
-      state: root.sleepLabel, enabled: true }
+      state: root.sleepLabel, enabled: true },
+    { glyph: "",       label: "",               action: "sep",  state: "", enabled: true },
+    // Stops, empties the queue and closes everything. The bar widget has
+    // nothing left to display and takes itself out of the bar, which is what
+    // "quit" means for something that lives in a shell rather than a window.
+    { glyph: "\uf011", label: "Quit TIDAL",     action: "quit", state: "", enabled: true }
   ]
 
   implicitWidth: Style.space(214)
