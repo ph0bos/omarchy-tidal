@@ -178,6 +178,13 @@ the way Apple Music and TIDAL's own client do. Library rows that arrive with
 nothing but a name have the rest filled in behind them, and the playing row is
 marked on its sleeve.
 
+**My Albums and My Artists open on a wall of covers**, not a list — a record is
+recognised by its sleeve long before its title is read, and a list gave each one
+a 34px thumbnail and two thirds of a row of nothing. The arrows walk the grid,
+`Enter` opens a card and `Shift+Enter` starts it, exactly as on Home. Tracks and
+playlists stay lists: a track list is read down a column of titles, and a
+playlist row carries its owner and its length.
+
 **Search answers while you type**, a third of a second after you stop — one
 request for a word, not one per letter — and answers with people first: artists,
 then records, then songs. Searching for a band used to bury the band under a

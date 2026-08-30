@@ -71,6 +71,14 @@ Item {
   readonly property bool homeActive: root.currentUri === "tidal:home"
     && root.detailUri === "" && !root.homeFallback
 
+  // Records and people get a wall of covers; tracks and playlists stay lists.
+  // A track list is read down a column of titles and a playlist row carries its
+  // length and its owner -- neither is recognised by a picture the way a sleeve
+  // or a face is.
+  readonly property bool gridActive:
+    (root.librarySection === "albums" || root.librarySection === "artists")
+    && root.detailUri === "" && !root.homeActive
+
   readonly property var navItems: Library.navigation()
 
   // Filing a track away is the host's job -- the picker is raised over the
@@ -435,7 +443,8 @@ Item {
     } while (root.rows[i] && root.rows[i].header && i > 0 && i < root.rows.length - 1)
     root.selectedIndex = i
     root.maybeLoadMore(i)
-    listView.positionViewAtIndex(i, ListView.Contain)
+    if (root.gridActive) libraryGrid.position(i)
+    else listView.positionViewAtIndex(i, ListView.Contain)
   }
 
   // ---- layout ----
@@ -769,10 +778,28 @@ Item {
         opacity: listView.opacity
       }
 
+      LibraryGrid {
+        id: libraryGrid
+        anchors.fill: parent
+        opacity: root.gridActive ? 1 : 0
+        visible: opacity > 0.01
+        rows: root.gridActive ? root.rows : []
+        selectedIndex: root.selectedIndex
+        foreground: root.foreground
+        fontFamily: root.fontFamily
+
+        onSelectRequested: function(index) { root.selectedIndex = index }
+        onOpenEntry: function(entry) { root.openRow(entry) }
+        onPlayEntry: function(entry) { root.playRow(entry) }
+        onNearEnd: root.loadLibraryPage(false)
+
+        Behavior on opacity { NumberAnimation { duration: Design.base; easing.type: Easing.OutCubic } }
+      }
+
       ListView {
         id: listView
         anchors.fill: parent
-        opacity: root.detailUri === "" && !root.homeActive ? 1 : 0
+        opacity: root.detailUri === "" && !root.homeActive && !root.gridActive ? 1 : 0
         visible: opacity > 0.01
         clip: true
         model: root.rows
@@ -883,6 +910,36 @@ Item {
         return
       }
       return
+    }
+
+    // My Albums and My Artists are a wall of covers, so the same four keys mean
+    // rows and columns there. Everything this branch does not claim -- Space,
+    // Backspace, P -- falls through to the shared handling below, because a
+    // branch that ends in a bare return is how the global keys were lost once
+    // already.
+    if (root.gridActive) {
+      var per = Math.max(1, libraryGrid.perRow)
+      if (event.key === Qt.Key_Down) { root.moveSelection(per); event.accepted = true; return }
+      if (event.key === Qt.Key_Up) { root.moveSelection(-per); event.accepted = true; return }
+      if (event.key === Qt.Key_PageDown) {
+        root.moveSelection(per * 3); event.accepted = true; return
+      }
+      if (event.key === Qt.Key_PageUp) {
+        root.moveSelection(-per * 3); event.accepted = true; return
+      }
+      if (event.key === Qt.Key_Right) { root.moveSelection(1); event.accepted = true; return }
+      if (event.key === Qt.Key_Left && root.selectedIndex > 0) {
+        // Only inside the grid. Off the left edge of the first card, Left is
+        // the way back out, which the shared handling below already knows.
+        root.moveSelection(-1); event.accepted = true; return
+      }
+      if (event.key === Qt.Key_Return || event.key === Qt.Key_Enter) {
+        // Enter opens the record, Shift+Enter starts it -- the two halves of
+        // what the card does to the mouse, and what Home already does.
+        var card = root.currentRow()
+        if (shift) root.playRow(card); else root.openRow(card)
+        event.accepted = true; return
+      }
     }
 
     // Ctrl with the arrows carries the row instead of moving between rows.
