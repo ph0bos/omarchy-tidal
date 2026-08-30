@@ -66,21 +66,13 @@ Item {
   implicitWidth: Style.space(Design.cardIdeal)
   height: width + labels.implicitHeight + Style.space(9)
 
-  TiltFrame {
+  // Static, deliberately. The lean belongs to the one sleeve you are listening
+  // to; a shelf of tiles all leaning as the pointer crosses them is a
+  // fairground, and browsing wants to be calm.
+  Item {
     id: artFrame
     width: parent.width
     height: width
-    radius: Style.space(4)
-    // Smaller than the now-playing sleeve, and only under the pointer: a whole
-    // shelf leaning at once would be a fairground, and the keyboard cursor
-    // already has the ring.
-    maxAngle: 4
-    sheen: 0.1
-    // The card's hover area covers the labels as well, so the lean stops at
-    // the bottom of the artwork rather than following the pointer onto text.
-    active: hover.containsMouse && hover.mouseY <= artFrame.height
-    pointerX: hover.mouseX
-    pointerY: hover.mouseY
 
     RoundedImage {
       id: art

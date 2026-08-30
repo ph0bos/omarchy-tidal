@@ -44,8 +44,13 @@ Item {
     radius: root.radius
     color: "black"
     visible: false
+    antialiasing: true
     layer.enabled: true
     layer.smooth: true
+    // Multisampled: the mask is what draws the corner, so a jagged mask is a
+    // jagged sleeve, and at this size the stair-stepping was visible without
+    // looking for it.
+    layer.samples: 4
   }
 
   // The placeholder is inside the masked item so an empty slot keeps the same
@@ -54,11 +59,14 @@ Item {
     anchors.fill: parent
     layer.enabled: true
     layer.smooth: true
+    layer.samples: 4
     layer.effect: MultiEffect {
       maskEnabled: true
       maskSource: mask
       maskThresholdMin: 0.5
-      maskSpreadAtMin: 0.1
+      // A wider spread is what antialiases the cut. At 0.1 the threshold is
+      // effectively binary and every corner is a staircase.
+      maskSpreadAtMin: 0.45
       blurEnabled: root.blur > 0
       blur: root.blur
       blurMax: 48

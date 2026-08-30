@@ -2,6 +2,7 @@ import QtQuick
 import qs.Commons
 import "../components"
 import "../lib/Design.js" as Design
+import "../lib/Library.js" as Library
 import "../lib/Lrc.js" as Lrc
 import "../lib/MopidyRpc.js" as Rpc
 import "../lib/TidalApi.js" as Tidal
@@ -145,6 +146,44 @@ Item {
   property string albumForTrack: ""
   property bool albumLoading: false
 
+  // The artist page, fetched only as a fallback.
+  //
+  // Most records have no editorial review -- TIDAL writes them for maybe one
+  // release in five -- and an info panel that answers "nothing to say about
+  // this album" is worse than one that says something true instead. When the
+  // review comes back empty, the artist's biography takes its place, which is
+  // what the native client falls back to as well.
+  property var artistPage: null
+  property bool artistLoading: false
+  property bool narrativeExpanded: false
+
+  function loadArtist(artistUri) {
+    if (!artistUri || root.artistLoading) return
+    if (root.artistPage && String(root.artistPage.uri) === artistUri) return
+    root.artistLoading = true
+    Tidal.artist(artistUri, function(page) {
+      if (!root.alive) return
+      root.artistPage = page
+      root.artistLoading = false
+    }, function() {
+      if (!root.alive) return
+      root.artistLoading = false
+    })
+  }
+
+  // What the narrative section says, and what to call it.
+  readonly property string narrative: {
+    if (root.album && root.album.review) return String(root.album.review)
+    if (root.artistPage && root.artistPage.bio) return String(root.artistPage.bio)
+    return ""
+  }
+  readonly property string narrativeLabel: {
+    if (root.album && root.album.review) return "REVIEW"
+    if (root.artistPage && root.artistPage.name)
+      return "ABOUT " + String(root.artistPage.name).toUpperCase()
+    return ""
+  }
+
   function loadAlbum() {
     var want = root.trackUri
     if (want === "" || want.indexOf("tidal:track:") !== 0) return
@@ -157,6 +196,7 @@ Item {
         root.album = page
         root.albumForTrack = want
         root.albumLoading = false
+        if (!page.review && page.artist_uri) root.loadArtist(String(page.artist_uri))
       }, function() {
         if (!root.alive) return
         root.albumLoading = false
@@ -191,6 +231,7 @@ Item {
     root.album = null
     root.albumForTrack = ""
     root.albumLoading = false
+    root.narrativeExpanded = false
     if (root.face === "info") root.loadAlbum()
   }
 
@@ -202,6 +243,12 @@ Item {
       parts.push(root.album.num_tracks + (root.album.num_tracks === 1 ? " track" : " tracks"))
     if (root.album.duration) parts.push(Math.round(root.album.duration / 60) + " min")
     return parts.join("  ·  ")
+  }
+
+  readonly property string releaseLine: {
+    if (!root.album) return ""
+    var when = Design.releaseDate(root.album.release_date)
+    return when === "" ? "" : "Released " + when
   }
 
   function showFace(next) {
@@ -287,8 +334,8 @@ Item {
         // The sleeve is the subject of this page, so it is the one thing that
         // leans. Only on the artwork face: tilting a 200px thumbnail beside a
         // lyric sheet would be fidgeting.
-        enabled: root.face === "artwork"
-        maxAngle: 7
+        leanEnabled: root.face === "artwork"
+        maxAngle: 13
         // The sleeve's own click area is the one that hears the pointer.
         active: artHover.containsMouse
         pointerX: artHover.mouseX
@@ -303,28 +350,10 @@ Item {
           decodeSize: 512
         }
 
-        Rectangle {
-          anchors.fill: parent
-          radius: Style.space(6)
-          color: Qt.rgba(root.scrim.r, root.scrim.g, root.scrim.b, 0.32)
-          opacity: artHover.containsMouse ? 1 : 0
-          Behavior on opacity { NumberAnimation { duration: Design.fast } }
-        }
-
-        // What clicking the sleeve does, said plainly, only while hovered.
-        Text {
-          textFormat: Text.PlainText
-          anchors.centerIn: parent
-          text: root.face === "artwork"
-            ? (root.hasLyrics ? "Lyrics" : "No lyrics")
-            : "Artwork"
-          color: root.onArt
-          opacity: artHover.containsMouse ? 0.92 : 0
-          font.family: root.fontFamily
-          font.pixelSize: Style.font.bodySmall
-          font.letterSpacing: 1.4
-          Behavior on opacity { NumberAnimation { duration: Design.fast } }
-        }
+        // No wash and no word over the artwork. The tabs below already name
+        // the faces, and the lean under the pointer says the sleeve is live --
+        // a label on top of the picture was saying a third time what two other
+        // things already said, over the one thing worth looking at.
 
         MouseArea {
           id: artHover
@@ -369,13 +398,26 @@ Item {
           horizontalAlignment: root.face === "artwork" ? Text.AlignHCenter : Text.AlignLeft
           // Foreground dimmed, not `muted`: muted is a colour for the theme's
           // own chrome, and over a bright sleeve it measured 1.15:1.
-          color: root.foreground
+          color: artistLink.containsMouse ? root.artAccent : root.foreground
           // Dimming secondary text is a choice worth making when the backdrop
           // allows it, and worth giving up when it does not: over a white
           // sleeve this rises until the line is readable again.
           opacity: 0.78 + 0.22 * root.artLuma
           font.family: root.fontFamily
           font.pixelSize: root.face === "artwork" ? Style.font.subtitle : Style.font.bodySmall
+
+          Behavior on color { ColorAnimation { duration: Design.fast } }
+
+          // The name of a thing is the way to its page, here as everywhere else
+          // in the plugin.
+          MouseArea {
+            id: artistLink
+            anchors.fill: parent
+            hoverEnabled: true
+            enabled: root.svc && root.svc.artistUri !== ""
+            cursorShape: Qt.PointingHandCursor
+            onClicked: root.openUri(root.svc.artistUri, root.svc.artist)
+          }
         }
 
         Text {
@@ -385,10 +427,21 @@ Item {
           text: root.svc ? root.svc.album : ""
           elide: Text.ElideRight
           horizontalAlignment: root.face === "artwork" ? Text.AlignHCenter : Text.AlignLeft
-          color: root.foreground
+          color: albumLink.containsMouse ? root.artAccent : root.foreground
           opacity: 0.6 + 0.35 * root.artLuma
           font.family: root.fontFamily
           font.pixelSize: Style.font.caption
+
+          Behavior on color { ColorAnimation { duration: Design.fast } }
+
+          MouseArea {
+            id: albumLink
+            anchors.fill: parent
+            hoverEnabled: true
+            enabled: root.svc && root.svc.albumUri !== ""
+            cursorShape: Qt.PointingHandCursor
+            onClicked: root.openUri(root.svc.albumUri, root.svc.album)
+          }
         }
       }
 
@@ -694,15 +747,21 @@ Item {
 
         Column {
           id: infoColumn
-          // Capped rather than filling the pane: an editorial review set the
-          // full width of a 1000px panel runs to 140 characters a line, which
-          // is roughly twice what anyone can track back to the next line.
-          width: Math.min(parent.width, Style.space(540))
+          width: parent.width
           spacing: Style.space(14)
+          // Room to scroll the last track clear of the face tabs, which float
+          // over the bottom of this pane rather than sitting under it.
+          bottomPadding: Style.space(52)
+
+          // Prose is capped even though the pane is not: an editorial review
+          // set the full width of a 1000px panel runs to 140 characters a
+          // line, which is roughly twice what anyone can track back to the
+          // next line. The track list is a table, so it takes the full width.
+          readonly property real proseWidth: Math.min(width, Style.space(540))
 
           Text {
             textFormat: Text.PlainText
-            width: parent.width
+            width: infoColumn.proseWidth
             visible: root.album !== null
             text: root.album ? String(root.album.name || "") : ""
             wrapMode: Text.WordWrap
@@ -725,7 +784,7 @@ Item {
 
           Text {
             textFormat: Text.PlainText
-            width: parent.width
+            width: infoColumn.proseWidth
             visible: root.album && root.album.artist
             text: root.album ? String(root.album.artist || "") : ""
             elide: Text.ElideRight
@@ -746,10 +805,21 @@ Item {
 
           Text {
             textFormat: Text.PlainText
-            width: parent.width
+            width: infoColumn.proseWidth
             visible: root.albumMeta !== ""
             text: root.albumMeta
             color: Color.muted
+            font.family: root.fontFamily
+            font.pixelSize: Style.font.caption
+          }
+
+          Text {
+            textFormat: Text.PlainText
+            width: infoColumn.proseWidth
+            visible: root.releaseLine !== ""
+            text: root.releaseLine
+            color: Color.muted
+            opacity: 0.7
             font.family: root.fontFamily
             font.pixelSize: Style.font.caption
           }
@@ -791,22 +861,121 @@ Item {
             }
           }
 
-          Text {
-            textFormat: Text.PlainText
+          // ---- narrative ----
+          //
+          // The review if TIDAL wrote one, the artist's biography if it did
+          // not. Clamped to a few lines with the rest a click away: a page
+          // that opens with eight hundred words of prose has buried the track
+          // list under it.
+          Column {
+            width: infoColumn.proseWidth
+            spacing: Style.space(6)
+            visible: root.narrative !== ""
+
+            Text {
+              textFormat: Text.PlainText
+              width: parent.width
+              text: root.narrativeLabel
+              elide: Text.ElideRight
+              color: Color.muted
+              opacity: 0.7
+              font.family: root.fontFamily
+              font.pixelSize: Style.font.caption
+              font.letterSpacing: 1.4
+            }
+
+            Text {
+              id: narrativeText
+              textFormat: Text.PlainText
+              width: parent.width
+              text: root.narrative
+              wrapMode: Text.WordWrap
+              maximumLineCount: root.narrativeExpanded ? 0 : 6
+              elide: root.narrativeExpanded ? Text.ElideNone : Text.ElideRight
+              color: root.foreground
+              opacity: 0.82
+              font.family: root.fontFamily
+              font.pixelSize: Style.font.bodySmall
+              lineHeight: 1.45
+            }
+
+            Text {
+              textFormat: Text.PlainText
+              visible: narrativeText.truncated || root.narrativeExpanded
+              text: root.narrativeExpanded ? "Show less" : "Read more"
+              color: root.artAccent
+              font.family: root.fontFamily
+              font.pixelSize: Style.font.caption
+
+              MouseArea {
+                anchors.fill: parent
+                cursorShape: Qt.PointingHandCursor
+                onClicked: root.narrativeExpanded = !root.narrativeExpanded
+              }
+            }
+          }
+
+          // ---- tracks ----
+          //
+          // The record you are inside, in order, with the playing track lit.
+          // This is the question the info face gets asked most -- what else is
+          // on this album -- and answering it here saves a trip out to the
+          // album page and back.
+          Column {
             width: parent.width
-            visible: root.album && root.album.review
-            text: root.album ? String(root.album.review || "") : ""
-            wrapMode: Text.WordWrap
-            color: root.foreground
-            opacity: 0.82
-            font.family: root.fontFamily
-            font.pixelSize: Style.font.bodySmall
-            lineHeight: 1.45
+            spacing: Style.space(6)
+            visible: infoTracks.count > 0
+
+            Text {
+              textFormat: Text.PlainText
+              text: "TRACKS"
+              color: Color.muted
+              opacity: 0.7
+              font.family: root.fontFamily
+              font.pixelSize: Style.font.caption
+              font.letterSpacing: 1.4
+            }
+
+            Repeater {
+              id: infoTracks
+              model: root.album && root.album.tracks ? root.album.tracks : []
+
+              TrackRow {
+                id: infoTrack
+                required property var modelData
+                width: infoColumn.width
+                row: ({
+                  uri: modelData.uri,
+                  name: modelData.name,
+                  // The artist and the album are both stated above this list.
+                  artist: "",
+                  album: "",
+                  subtitle: "",
+                  image: modelData.image || "",
+                  num: modelData.track_num || 0,
+                  duration: modelData.duration || 0,
+                  type: "track",
+                  complete: true,
+                  header: false
+                })
+                playing: root.svc
+                  && Library.sameTrack(root.svc.trackUri, infoTrack.modelData.uri)
+                foreground: root.foreground
+                accent: root.artAccent
+                fontFamily: root.fontFamily
+
+                onActivated: Rpc.playNow([infoTrack.modelData.uri])
+                onQueued: Rpc.queue([infoTrack.modelData.uri], function() {
+                  if (!root.alive || !root.svc) return
+                  root.svc.osd("Added to queue", "media")
+                })
+              }
+            }
           }
 
           Text {
             textFormat: Text.PlainText
-            width: parent.width
+            width: infoColumn.proseWidth
             visible: root.album && root.album.copyright
             text: root.album ? String(root.album.copyright || "") : ""
             wrapMode: Text.WordWrap

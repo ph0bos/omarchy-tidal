@@ -133,8 +133,12 @@ rest filled in behind them, and the playing row is marked on its sleeve.
 
 Photography, biography, editorial reviews, credits, top tracks, discography and
 similar artists. TIDAL's inline markup is cleaned up and the artists it
-references become chips you can jump to. Album pages number their tracks and
-give each one its running time.
+references become chips you can jump to.
+
+Album pages number their tracks and give each one its running time, name the
+artist as a link back to their page, and print the release date and the
+copyright line in the small type they belong in. An album with no editorial
+review borrows the artist's biography instead of showing an empty page.
 
 ### Now playing
 
@@ -153,13 +157,19 @@ it. A long instrumental is marked with dots that fill as it runs down, so a solo
 reads as the song still playing rather than as a sheet that has stuck; the intro
 before the first line is marked the same way.
 
-`I` gives you the record instead — year, length, credits, editorial review, and
-exactly what is coming out of the speakers.
+`I` gives you the record instead: the album, its artist, the year, the running
+time, the exact release date and the label off the back of the sleeve, what is
+actually coming out of the speakers — and the album's own track list, in order,
+with the playing track lit and any of them a click from playing. TIDAL writes an
+editorial review for maybe one release in five; when there is none, the artist's
+biography takes its place rather than leaving the panel with nothing to say.
 
-The sleeve leans toward the pointer, with a highlight that follows it across
-the artwork — small angles and a slow return, because the flourish is the record
-behaving like an object rather than the panel showing off. The shelf tiles do a
-smaller version of the same thing.
+The sleeve leans toward the pointer, and the light comes with it: a pool of
+highlight under the cursor, the far side falling into shadow, both drawn as real
+gradients so the shading has no banding and the rounded corners no stair-step.
+Small angles and a slow return, because the flourish is the record behaving like
+an object rather than the panel showing off — and it belongs to the one sleeve
+you are listening to. Shelf tiles and library rows stay perfectly still.
 
 **The view reads the sleeve.** The companion measures each cover — how light it
 is, and what colour it is — and the view uses both. A white cover used to lift
@@ -352,6 +362,8 @@ python3 -m pytest tests -q            # companion extension
 node --test tests/js.test.mjs         # the QML JavaScript libraries
 python3 scripts/validate-manifest.py .
 python3 scripts/check-textformat.py . # no Text may default to AutoText
+python3 scripts/check-async-guards.py .
+python3 scripts/check-js-imports.py . # qmllint cannot see a missing JS import
 omarchy plugin validate .
 
 mkdir -p /tmp/qsimports && ln -sfn /usr/share/omarchy/shell /tmp/qsimports/qs

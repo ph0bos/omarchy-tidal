@@ -158,3 +158,5 @@ jobs:
       # the whole shell down -- not just this plugin.
       - name: Async callbacks check alive first
         run: python3 scripts/check-async-guards.py .
+      - name: Every JS namespace used is imported
+        run: python3 scripts/check-js-imports.py .

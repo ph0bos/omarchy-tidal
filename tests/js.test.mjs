@@ -386,3 +386,17 @@ test("dropIndex turns a drag distance into the row it landed on", () => {
   // A list that has not been laid out yet cannot be dropped into.
   assert.equal(Library.dropIndex(2, 100, 0, 6), 2);
 });
+
+test("releaseDate reads the date half and drops the time", () => {
+  assert.equal(Design.releaseDate("2025-08-22 00:00:00"), "22 August 2025");
+  assert.equal(Design.releaseDate("1997-10-28"), "28 October 1997");
+});
+
+test("releaseDate returns nothing it cannot vouch for", () => {
+  assert.equal(Design.releaseDate(""), "");
+  assert.equal(Design.releaseDate(null), "");
+  assert.equal(Design.releaseDate("sometime in 2025"), "");
+  assert.equal(Design.releaseDate("2025-13-01"), "");
+  assert.equal(Design.releaseDate("2025-00-01"), "");
+  assert.equal(Design.releaseDate("2025-08-00"), "");
+});

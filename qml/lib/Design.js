@@ -133,3 +133,23 @@ function readableOr(candidate, background, fallback, minimum) {
   if (!candidate) return fallback
   return contrast(candidate, background) >= (minimum || 3) ? candidate : fallback
 }
+
+// "2025-08-22 00:00:00" -> "22 August 2025".
+//
+// TIDAL sends a release date as a Python datetime that has been stringified,
+// so the time half is always midnight and always noise. A year on its own is
+// what a listing needs; a full date is what an album page can afford, and it
+// is the one piece of metadata that says whether a record is new.
+var MONTHS = ["January", "February", "March", "April", "May", "June",
+              "July", "August", "September", "October", "November", "December"]
+
+function releaseDate(value) {
+  if (!value) return ""
+  var match = String(value).match(/^(\d{4})-(\d{2})-(\d{2})/)
+  if (!match) return ""
+  var month = parseInt(match[2], 10)
+  if (month < 1 || month > 12) return ""
+  var day = parseInt(match[3], 10)
+  if (day < 1 || day > 31) return ""
+  return day + " " + MONTHS[month - 1] + " " + match[1]
+}

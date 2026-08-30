@@ -2,6 +2,7 @@ import QtQuick
 import qs.Commons
 import qs.Ui
 import "../components"
+import "../lib/Design.js" as Design
 import "../lib/MopidyRpc.js" as Rpc
 import "../lib/TidalApi.js" as Tidal
 import "../lib/Library.js" as Library
@@ -49,21 +50,53 @@ Item {
     if (!page) return ""
     if (isArtist) return String(page.bio || "")
     if (isPlaylist) return String(page.description || "")
-    return String(page.review || "")
+    if (page.review) return String(page.review)
+    // TIDAL writes a review for maybe one release in five. Rather than leave
+    // the page with nothing to read, an album with no review borrows the
+    // artist's biography -- which is what the native client does too.
+    return artistPage && artistPage.bio ? String(artistPage.bio) : ""
   }
   readonly property string bodyLabel: {
     if (isArtist) return "BIOGRAPHY"
     if (isPlaylist) return "ABOUT"
-    return "REVIEW"
+    if (page && page.review) return "REVIEW"
+    return artistPage && artistPage.name
+      ? "ABOUT " + String(artistPage.name).toUpperCase() : "REVIEW"
+  }
+
+  // The artist behind an album, fetched only when the album has no review of
+  // its own to show.
+  property var artistPage: null
+  property bool artistLoading: false
+
+  function loadArtist(artistUri) {
+    if (!artistUri || root.artistLoading) return
+    if (root.artistPage && String(root.artistPage.uri) === artistUri) return
+    root.artistLoading = true
+    Tidal.artist(artistUri, function(page) {
+      if (!root.alive) return
+      root.artistPage = page
+      root.artistLoading = false
+    }, function() {
+      if (!root.alive) return
+      root.artistLoading = false
+    })
   }
   readonly property var mentions: {
     if (!page || isPlaylist) return []
-    var all = (isArtist ? page.bio_links : page.review_links) || []
+    var all = (isArtist ? page.bio_links
+      : (page.review ? page.review_links
+         : (artistPage ? artistPage.bio_links : []))) || []
     // TIDAL's editorial nearly always names the record it is reviewing, which
     // arrives as a link back to this very page. Drop it.
     var out = []
     for (var i = 0; i < all.length; i++) {
-      if (all[i] && String(all[i].uri) !== root.uri) out.push(all[i])
+      if (!all[i]) continue
+      // Drop the page's own subject, and -- when the prose is the artist's
+      // biography standing in for a missing review -- the artist as well.
+      if (String(all[i].uri) === root.uri) continue
+      if (page.artist_uri && String(all[i].uri) === String(page.artist_uri)) continue
+      out.push(all[i])
     }
     return out
   }
@@ -92,9 +125,16 @@ Item {
     }
     root.page = null
     root.tracks = []
+    root.artistPage = null
+    root.artistLoading = false
     root.bioExpanded = false
     root.loading = true
     root.errorText = ""
+    // Back to the top. The Flickable keeps whatever position the last page
+    // left it at, so opening an artist from halfway down a long album landed
+    // you halfway down the artist -- below the portrait, the name and the
+    // biography, on a page that looked like it had no header at all.
+    flick.contentY = 0
 
     function ok(payload) {
       if (!root.alive || root.uri !== want) return
@@ -104,6 +144,8 @@ Item {
         : []
       root.loading = false
       if (payload && payload.name) root.titleResolved(String(payload.name))
+      if (wantAlbum && payload && !payload.review && payload.artist_uri)
+        root.loadArtist(String(payload.artist_uri))
     }
     function fail(err) {
       if (!root.alive || root.uri !== want) return
@@ -198,6 +240,17 @@ Item {
     Qt.openUrlExternally(url)
   }
 
+  // The label and the exact release date -- the things a record sleeve prints
+  // in small type on the back, kept in small type here.
+  readonly property string imprintLine: {
+    if (!page || isArtist || isPlaylist) return ""
+    var parts = []
+    var when = Design.releaseDate(page.release_date)
+    if (when !== "") parts.push("Released " + when)
+    if (page.copyright) parts.push(String(page.copyright))
+    return parts.join("  ·  ")
+  }
+
   // Album: "1997 · 10 tracks · 43 min". Artist: the roles TIDAL lists.
   readonly property string metaLine: {
     if (!page) return ""
@@ -210,7 +263,9 @@ Item {
       return parts.join(" · ")
     }
     if (isPlaylist && page.creator) parts.push("by " + page.creator)
-    if (page.artist) parts.push(page.artist)
+    // An album's artist gets a line of its own above this one, because it is
+    // a link rather than a fact.
+    if (page.artist && !page.artist_uri) parts.push(page.artist)
     if (page.year) parts.push(String(page.year))
     if (page.num_tracks) parts.push(page.num_tracks + (page.num_tracks === 1 ? " track" : " tracks"))
     if (page.duration) parts.push(Math.round(page.duration / 60) + " min")
@@ -326,6 +381,32 @@ Item {
           }
 
           Text {
+            id: heroArtist
+            textFormat: Text.PlainText
+            width: parent.width
+            visible: root.page && root.page.artist && root.page.artist_uri
+            text: root.page ? String(root.page.artist || "") : ""
+            elide: Text.ElideRight
+            color: heroArtistHover.containsMouse ? root.foreground : Color.accent
+            font.family: root.fontFamily
+            font.pixelSize: Style.font.subtitle
+
+            Behavior on color { ColorAnimation { duration: Design.fast } }
+
+            MouseArea {
+              id: heroArtistHover
+              anchors.fill: parent
+              hoverEnabled: true
+              cursorShape: Qt.PointingHandCursor
+              onClicked: {
+                if (!root.page || !root.page.artist_uri) return
+                root.openUri(String(root.page.artist_uri),
+                             String(root.page.artist || ""))
+              }
+            }
+          }
+
+          Text {
             textFormat: Text.PlainText
             width: parent.width
             visible: root.metaLine !== ""
@@ -334,6 +415,18 @@ Item {
             color: Color.muted
             font.family: root.fontFamily
             font.pixelSize: Style.font.bodySmall
+          }
+
+          Text {
+            textFormat: Text.PlainText
+            width: parent.width
+            visible: root.imprintLine !== ""
+            text: root.imprintLine
+            elide: Text.ElideRight
+            color: Color.muted
+            opacity: 0.66
+            font.family: root.fontFamily
+            font.pixelSize: Style.font.caption
           }
 
           // Hi-res is the whole point of this plugin, so it gets a real badge.
