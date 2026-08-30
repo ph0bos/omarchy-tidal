@@ -45,6 +45,17 @@ Item {
   // different affordances for one state.
   readonly property bool hot: hover.containsMouse || root.selected
 
+  // The space under a tile should be the space you can see. A text item's box
+  // starts above its capitals, so a 9px margin drew as 12 and the labels sat
+  // adrift from their artwork.
+  FontMetrics {
+    id: labelMetrics
+    font.family: root.fontFamily
+    font.pixelSize: Style.font.bodySmall
+  }
+
+  readonly property real labelCapGap: labelMetrics.ascent - labelMetrics.capitalHeight
+
   // Scrims and labels that sit on top of album art. Derived from the theme
   // rather than hardcoded black and white: Omarchy ships light themes, and a
   // black wash under white text is only correct on half of them.
@@ -149,7 +160,7 @@ Item {
   Column {
     id: labels
     anchors.top: artFrame.bottom
-    anchors.topMargin: Style.space(9)
+    anchors.topMargin: Style.space(9) - root.labelCapGap
     width: parent.width
     spacing: Style.space(2)
 

@@ -198,6 +198,9 @@ Item {
   //   off -> all -> single -> off
   property bool shuffle: false
   property string repeatMode: "off"   // off | all | single
+  // Mopidy's consume: a track is dropped from the queue once it has played.
+  // Not "pause after this track", which is what this used to claim in the menu
+  // and in the OSD -- a different setting entirely, and now a real one below.
   property bool consume: false
 
   function refreshModes() {
@@ -249,9 +252,76 @@ Item {
     Rpc.setConsume(next, function() {
       if (!root.alive) return
       root.consume = next
-      root.osd(next ? "Pause after track" : "Continue playing", "media")
+      root.osd(next ? "Played tracks will be removed"
+                    : "Played tracks will be kept", "media")
     })
     return true
+  }
+
+  // ---- sleep timer ---------------------------------------------------------
+  //
+  // Two shapes, because both are things people mean by "stop soon": a number of
+  // minutes, and "when this track finishes". The countdown runs off a wall
+  // clock rather than a tick count, for the same reason the playback position
+  // does -- timers fire late under load and the error accumulates.
+  property double sleepEndsAt: 0     // epoch ms, 0 when no timer is set
+  property bool sleepAfterTrack: false
+
+  readonly property bool sleeping: sleepEndsAt > 0 || sleepAfterTrack
+  readonly property int sleepMinutesLeft: sleepEndsAt > 0
+    ? Math.max(0, Math.ceil((sleepEndsAt - now) / 60000)) : 0
+
+  // Ticks once a second only while a timer is set, so an idle plugin costs
+  // nothing.
+  property double now: 0
+
+  Timer {
+    running: root.sleepEndsAt > 0
+    interval: 1000
+    repeat: true
+    triggeredOnStart: true
+    onTriggered: {
+      if (!root.alive) return
+      root.now = Date.now()
+      if (root.now >= root.sleepEndsAt) root.sleepNow()
+    }
+  }
+
+  function sleepNow() {
+    root.cancelSleep()
+    if (root.player && root.player.canTogglePlaying && root.playing) root.player.togglePlaying()
+    else Rpc.pause()
+    root.osd("Sleep timer: stopped", "media")
+  }
+
+  function cancelSleep() {
+    root.sleepEndsAt = 0
+    root.sleepAfterTrack = false
+  }
+
+  // Off -> 15 -> 30 -> 45 -> 60 -> end of track -> off. One entry in the menu
+  // rather than a submenu, the way repeat already cycles.
+  function cycleSleep() {
+    if (root.sleepAfterTrack) { root.cancelSleep(); root.osd("Sleep timer off", "media"); return true }
+    var minutes = root.sleepEndsAt > 0 ? root.sleepMinutesLeft : 0
+    var next = minutes >= 60 ? -1 : (minutes >= 45 ? 60 : (minutes >= 30 ? 45 : (minutes >= 15 ? 30 : 15)))
+    if (next === -1) {
+      root.sleepEndsAt = 0
+      root.sleepAfterTrack = true
+      root.osd("Sleep after this track", "media")
+      return true
+    }
+    root.now = Date.now()
+    root.sleepEndsAt = root.now + next * 60000
+    root.sleepAfterTrack = false
+    root.osd("Sleep in " + next + " minutes", "media")
+    return true
+  }
+
+  readonly property string sleepLabel: {
+    if (root.sleepAfterTrack) return "end of track"
+    if (root.sleepEndsAt > 0) return root.sleepMinutesLeft + " min"
+    return "off"
   }
 
   // ---- stream quality ------------------------------------------------------
@@ -284,6 +354,8 @@ Item {
   }
 
   onTrackUriChanged: {
+    // The queue moving on is how a "sleep after this track" timer arrives.
+    if (root.sleepAfterTrack) root.sleepNow()
     root.anchorPosition(0)
     Qt.callLater(root.syncPosition)
     root.favorite = false
@@ -498,6 +570,7 @@ Item {
       shuffle: root.shuffle,
       repeat: root.repeatMode,
       consume: root.consume,
+      sleep: root.sleepLabel,
       lyricsSource: root.lyrics && root.lyrics.source ? root.lyrics.source : "",
       lyricsSynced: root.lyrics && root.lyrics.synced ? root.lyrics.synced.length : 0,
       lyricsPlain: root.lyrics && root.lyrics.plain ? root.lyrics.plain.length : 0,
@@ -528,6 +601,8 @@ Item {
     function shuffle(): string { return root.toggleShuffle() ? "ok" : "unhandled" }
     function repeat(): string { return root.cycleRepeat() ? "ok" : "unhandled" }
     function consume(): string { return root.toggleConsume() ? "ok" : "unhandled" }
+    function sleep(): string { return root.cycleSleep() ? "ok" : "unhandled" }
+    function sleepOff(): string { root.cancelSleep(); return "ok" }
     function playPause(): string { return root.playPause() ? "ok" : "unhandled" }
     function next(): string { return root.next() ? "ok" : "unhandled" }
     function previous(): string { return root.previous() ? "ok" : "unhandled" }

@@ -169,6 +169,16 @@ the tray, turn off **Show track title** in the widget's settings: it becomes
 tray-sized — artwork and playback state, no text — and the mini player still
 opens under it.
 
+### Sleep timer
+
+In the quick menu, cycling 15, 30, 45, 60 minutes and then "end of track" — the
+two things people mean by stop soon. It pauses through MPRIS, so the bar, the
+media keys and the OSD all agree about what happened.
+
+Its neighbour in that menu used to say "Pause after track" while toggling
+Mopidy's `consume`, which removes each track from the queue once it has played.
+It now says that instead.
+
 ### Hi-res, verified
 
 The quality badge reports the format TIDAL **actually negotiated** — not the tier
@@ -190,8 +200,9 @@ queue · `→` open · `←`/`Backspace` back · `Tab` switch pane · `Space`
 play/pause · `Esc` close.
 
 In the queue, `Enter` jumps to that track rather than starting a new queue from
-it, `Delete` takes it out, and **Clear** in the header empties the lot. `P` on
-any track asks which playlist to file it in.
+it, `Ctrl`+`↑`/`↓` carries a row up or down the running order, `Delete` takes it
+out, and **Clear** in the header empties the lot. `P` on any track asks which
+playlist to file it in, and `M` opens the quick menu.
 
 On Home the arrows walk the artwork grid — up and down between shelves, left and
 right along one — and `Enter` opens a card while `Shift+Enter` starts it, which
@@ -213,6 +224,8 @@ omarchy-shell tidal lyrics       # now playing, on the lyrics
 omarchy-shell tidal info         # now playing, on the credits
 omarchy-shell tidal mini         # the bar's mini player
 omarchy-shell tidal favorite | radio | shuffle | repeat | consume
+omarchy-shell tidal sleep         # cycle the sleep timer
+omarchy-shell tidal sleepOff      # cancel it
 omarchy-shell tidal playPause | next | previous
 ```
 

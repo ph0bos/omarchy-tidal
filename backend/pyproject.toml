@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "mopidy-omarchy-tidal"
-version = "0.3.7"
+version = "0.4.0"
 description = "Lyrics, discovery, favourites and stream-format endpoints for the Omarchy Tidal plugin"
 readme = "README.md"
 requires-python = ">=3.12"

@@ -84,7 +84,14 @@ function playTlid(tlid, onOk, onErr) {
 function removeTlid(tlid, onOk, onErr) {
   call("core.tracklist.remove", { criteria: { tlid: [tlid] } }, onOk, onErr)
 }
-function moveTlid(fromIndex, toIndex, onOk, onErr) {
+// Move one entry within the queue, by position.
+//
+// core.tracklist.move(start, end, to_position) behaves exactly like a splice:
+// the slice is lifted out and re-inserted at to_position in the list that is
+// left. Verified against a live tracklist, because "to_position" could equally
+// have meant a position in the original list, and the two differ when moving
+// downwards.
+function moveTrack(fromIndex, toIndex, onOk, onErr) {
   call("core.tracklist.move", { start: fromIndex, end: fromIndex + 1, to_position: toIndex },
        onOk, onErr)
 }

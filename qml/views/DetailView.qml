@@ -22,6 +22,16 @@ Item {
   property bool alive: true
   Component.onDestruction: root.alive = false
 
+  // The hero title sits beside the artwork, so it aligns to the sleeve's top
+  // edge by its capitals rather than by its line box.
+  FontMetrics {
+    id: heroMetrics
+    font.family: root.fontFamily
+    font.pixelSize: Style.font.display
+  }
+
+  readonly property real heroCapGap: heroMetrics.ascent - heroMetrics.capitalHeight
+
   property var page: null
   // The track list is held apart from the page so a row removed from a playlist
   // can leave without the whole page being fetched again.
@@ -263,6 +273,7 @@ Item {
         Column {
           width: parent.width - Style.space(166)
           spacing: Style.space(8)
+          topPadding: -root.heroCapGap
 
           Text {
             textFormat: Text.PlainText

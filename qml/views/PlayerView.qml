@@ -77,6 +77,9 @@ Item {
   // whole card, not inside this pane.
   signal addToPlaylist(string uri, string title)
 
+  // The quick menu is the host's, so this only asks for it.
+  signal menuRequested()
+
   // Deep link, delivered as bound state rather than a method call so it cannot
   // race the Loader. The serial makes a repeat request of the same uri count.
   property string deepLinkUri: ""
@@ -306,6 +309,27 @@ Item {
       root.rows = next
       root.selectedIndex = Math.max(0, Math.min(root.selectedIndex, next.length - 1))
       if (next.length === 0) root.errorText = "The queue is empty."
+    }, function(err) { if (root.alive) root.errorText = err })
+  }
+
+  // Reorder the queue from the keyboard. The list is mirrored locally on
+  // success rather than re-read: the rows are already here, and re-reading
+  // would throw away the scroll position and the cursor mid-gesture, which is
+  // the one thing you cannot afford while dragging something into place.
+  function moveQueueRow(delta) {
+    if (root.currentUri !== "queue") return
+    var from = root.selectedIndex
+    var to = from + delta
+    if (from < 0 || from >= root.rows.length) return
+    if (to < 0 || to >= root.rows.length) return
+
+    Rpc.moveTrack(from, to, function() {
+      if (!root.alive) return
+      var next = root.rows.slice()
+      next.splice(to, 0, next.splice(from, 1)[0])
+      root.rows = next
+      root.selectedIndex = to
+      listView.positionViewAtIndex(to, ListView.Contain)
     }, function(err) { if (root.alive) root.errorText = err })
   }
 
@@ -766,6 +790,15 @@ Item {
     var ctrl = (event.modifiers & Qt.ControlModifier) !== 0
     var shift = (event.modifiers & Qt.ShiftModifier) !== 0
 
+    // The quick menu had no key at all, which in a keyboard-first shell means
+    // half its actions were unreachable without a mouse. Handled before the
+    // per-pane branches below, which end in a bare return: a global key must
+    // not depend on which pane happens to be showing.
+    if (event.key === Qt.Key_M) {
+      root.menuRequested()
+      event.accepted = true; return
+    }
+
     if (event.key === Qt.Key_Slash || (ctrl && event.key === Qt.Key_F)) {
       root.focusSearch(); event.accepted = true; return
     }
@@ -807,7 +840,22 @@ Item {
         if (root.svc) root.svc.playPause()
         event.accepted = true; return
       }
+      if (event.key === Qt.Key_P) {
+        var card = homePage.selectedEntry()
+        if (card && String(card.type) === "track") {
+          root.addToPlaylist(String(card.uri), String(card.name || ""))
+          event.accepted = true
+        }
+        return
+      }
       return
+    }
+
+    // Ctrl with the arrows carries the row instead of moving between rows.
+    if (root.currentUri === "queue" && ctrl
+        && (event.key === Qt.Key_Up || event.key === Qt.Key_Down)) {
+      root.moveQueueRow(event.key === Qt.Key_Down ? 1 : -1)
+      event.accepted = true; return
     }
 
     if (event.key === Qt.Key_Down) { root.moveSelection(1); event.accepted = true; return }

@@ -185,6 +185,7 @@ Item {
       case "shuffle":  root.svc.toggleShuffle(); break
       case "repeat":   root.svc.cycleRepeat(); break
       case "consume":  root.svc.toggleConsume(); break
+      case "sleep":    root.svc.cycleSleep(); break
       case "playlist": root.addToPlaylist(root.svc.trackUri, root.svc.title); break
     }
   }
@@ -228,6 +229,11 @@ Item {
         if (root.currentView !== "nowPlaying") return
         if (event.key === Qt.Key_Space) {
           if (root.svc) root.svc.playPause()
+          event.accepted = true
+          return
+        }
+        if (event.key === Qt.Key_M) {
+          root.menuOpen = !root.menuOpen
           event.accepted = true
           return
         }
@@ -403,6 +409,7 @@ Item {
             deepLinkTitle: root.pendingTitle
             deepLinkSerial: root.deepLinkSerial
             onAddToPlaylist: function(uri, title) { root.addToPlaylist(uri, title) }
+            onMenuRequested: root.menuOpen = !root.menuOpen
           }
         }
 

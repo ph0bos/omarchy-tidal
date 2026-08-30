@@ -21,6 +21,8 @@ Item {
   readonly property bool favorited: svc ? svc.favorite : false
   readonly property bool shuffled: svc ? svc.shuffle : false
   readonly property string repeatMode: svc ? svc.repeatMode : "off"
+  readonly property bool consuming: svc ? svc.consume : false
+  readonly property string sleepLabel: svc ? svc.sleepLabel : "off"
 
   // Each row: glyph, label, action, an optional live state string, and whether
   // it applies to what is playing right now.
@@ -38,7 +40,10 @@ Item {
       state: root.shuffled ? "on" : "off", enabled: true },
     { glyph: "\uf01e", label: "Repeat",          action: "repeat",
       state: root.repeatMode, enabled: true },
-    { glyph: "\uf28b", label: "Pause after track", action: "consume", state: "", enabled: true }
+    { glyph: "\uf28b", label: "Remove played tracks", action: "consume",
+      state: root.consuming ? "on" : "off", enabled: true },
+    { glyph: "\uf017", label: "Sleep timer",       action: "sleep",
+      state: root.sleepLabel, enabled: true }
   ]
 
   implicitWidth: Style.space(214)

@@ -213,13 +213,14 @@ current.
 
 Next, in the order that makes sense:
 
-1. **Playlist reordering.** Adding, creating and removing are done, and
-   playlists have their own page; tidalapi's `move_by_index` is the last piece,
-   and drag-to-reorder is the interaction it wants.
-3. **Sleep timer**, and **TIDAL Connect device switching**.
-4. **A settings surface** for the plugin's own options, rather than the widget
+1. **Playlist reordering.** The queue reorders from the keyboard
+   (`Ctrl`+arrows, `core.tracklist.move`); playlists still do not, because
+   tidalapi's `move_by_index` wants a drag interaction, and drag cannot be
+   tested here -- synthetic cursor warps deliver neither hover nor drag to the
+   surface. Worth doing when someone can drive a real mouse.
+2. **TIDAL Connect device switching.** The sleep timer is done.
+3. **A settings surface** for the plugin's own options, rather than the widget
    schema being the only place to change anything.
 
-Not started: memory is ~130 MB for the Mopidy backend, against ~60 MB for the
-Spotify plugin's Rust daemon — that gap closes only by replacing the backend,
-which is its own project.
+The memory numbers above are the honest ceiling: the backend is the larger half
+and only comes down by replacing Mopidy, which is its own project.
