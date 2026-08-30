@@ -40,10 +40,16 @@ BarWidget {
   // every few minutes would shove the status icons around.
   readonly property bool showLabel: setting("showLabel", true)
 
-  // Album art already identifies the widget; showing the TIDAL mark next to it
-  // is two logos for one thing. The mark stands in only when there is no art.
-  readonly property bool showMark: !hasArt || root.vertical || !showLabel
+  // Art or mark, never both: two logos for one thing.
+  //
+  // With the label on, the sleeve identifies the widget and says what is
+  // playing. With it off -- the compact mode meant for the right-hand cluster
+  // -- the mark wins: at bar-icon size a sleeve is a coloured smudge rather
+  // than recognisable artwork, and a changing one among monochrome status
+  // glyphs reads as noise. The mark takes the theme's colour and holds still.
   readonly property bool hasArt: artUrl !== ""
+  readonly property bool showArt: !root.vertical && hasArt && showLabel
+  readonly property bool showMark: !showArt
 
   // Panel lifecycle, in the shape the bar looks for: it drives these when a
   // hotkey or an IPC call targets a bar widget's panel.
@@ -98,8 +104,14 @@ BarWidget {
     return artist ? (title + "  ·  " + artist) : title
   }
 
-  visible: hasTrack
-  implicitWidth: !hasTrack ? 0 : (vertical ? barSize : content.implicitWidth + Style.space(14))
+  // With a label, this is a now-playing display, and a display with nothing to
+  // display should get out of the bar. Without one it is a control -- the way
+  // into the mini player -- and a control that vanishes when the music stops is
+  // a control you cannot use to start any.
+  readonly property bool idleHidden: !hasTrack && showLabel
+
+  visible: !idleHidden
+  implicitWidth: idleHidden ? 0 : (vertical ? barSize : content.implicitWidth + Style.space(14))
   implicitHeight: vertical ? content.implicitHeight + Style.space(10) : barSize
 
   Row {
@@ -113,7 +125,7 @@ BarWidget {
       height: width
       radius: Style.space(2)
       decodeSize: 64
-      visible: !root.vertical && root.hasArt
+      visible: root.showArt
       source: root.artUrl
     }
 

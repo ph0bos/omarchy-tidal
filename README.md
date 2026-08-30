@@ -171,13 +171,23 @@ Click the bar widget and the controls come to you: artwork, a playhead you can
 scrub, transport, favourite, radio and the stream's real format. Skipping a
 track should not dim the desktop.
 
-**Where to put the widget.** It ships in the **centre** section, which is where
-this bar keeps its variable-width widgets — the clock and the weather. A title
-that changes width every few minutes would shove the right-hand status icons
-around every time the track changed. If you would rather have it over there with
-the tray, turn off **Show track title** in the widget's settings: it becomes
-tray-sized — artwork and playback state, no text — and the mini player still
-opens under it.
+**Where to put the widget.** Two placements, for two different jobs, and the
+plugin supports both:
+
+- **Centre, with the title** — a now-playing display, which is the default. This
+  is where the bar keeps its variable-width widgets (the clock, the weather), so
+  a title that changes length with the track belongs here rather than shoving
+  the status icons around every few minutes.
+- **Right, with the title off** — a control, sitting with audio, network and
+  bluetooth, which open their panels the same way the mini player opens under
+  this. Turn off **Show track title** and the widget becomes the plugin's mark
+  at icon size: monochrome, in the theme's colour, holding still among the other
+  status glyphs. An album sleeve at 15 pixels is a coloured smudge rather than
+  recognisable artwork, so compact mode shows the mark instead.
+
+In compact mode the widget also stays put when nothing is playing. A display
+with nothing to display should get out of the bar; a control you cannot use to
+start any music should not.
 
 ### Sleep timer
 

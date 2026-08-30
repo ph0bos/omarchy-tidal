@@ -2,7 +2,7 @@
   "schemaVersion": 1,
   "id": "quickshell.tidal",
   "name": "TIDAL",
-  "version": "0.5.1",
+  "version": "0.5.2",
   "author": "stevenr",
   "description": "Hi-res lossless TIDAL inside the Omarchy shell — 24-bit/192kHz FLAC, a personalised home page, artist and album pages, synced lyrics, and a mini player in the bar.",
   "kinds": [
