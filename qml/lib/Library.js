@@ -277,10 +277,16 @@ function librarySection(uri) {
 // are just browse targets -- no special-casing anywhere in the UI. Search is
 // not among them: it has its own field in the page header, and a nav row that
 // only moved focus into that field was a second door onto the same room.
+//
+// "For You" is not among them either. It is not a different page: measured
+// against a real account, `for_you` and `home` return twenty rows each of
+// which seventeen are identical -- same titles, same items, same order -- and
+// the remaining three differ only in which record a "Because you listened to"
+// shelf was seeded from. Browsing it gave four folders with no artwork, which
+// is what the Home page was rebuilt to stop doing. One door onto one room.
 function navigation() {
   return [
     { label: "Home",        uri: "tidal:home",        icon: "home" },
-    { label: "For You",     uri: "tidal:for_you",     icon: "star" },
     { label: "Hi-Res",      uri: "tidal:hires",       icon: "hires" },
     { label: "My Tracks",   uri: "tidal:my_tracks",   icon: "track" },
     { label: "My Albums",   uri: "tidal:my_albums",   icon: "album" },

@@ -22,6 +22,14 @@ Item {
   property color foreground: Color.menu.text
   property string fontFamily: Style.font.menuFamily
 
+  // Which of TIDAL's personalised pages to ask the companion for.
+  //
+  // "home" rather than the endpoint's default of both, because both is what
+  // this page used to send: /home merged `home` and `for_you`, and on a real
+  // account 17 of those 20 rows are identical -- same titles, same items, same
+  // order. Home was showing itself twice below the fold.
+  property string page: "home"
+
   property bool alive: true
   Component.onDestruction: root.alive = false
 
@@ -106,7 +114,7 @@ Item {
     root.loading = true
     root.errorText = ""
 
-    Tidal.home(function(payload) {
+    Tidal.home(root.page, function(payload) {
       if (!root.alive) return
       root.loading = false
       var rows = (payload && payload.rows) || []

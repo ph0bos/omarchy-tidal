@@ -29,6 +29,7 @@ import tornado.web
 
 from . import images as images_mod
 from . import lyrics as lyrics_mod
+from . import pages as pages_mod
 from . import palette as palette_mod
 from . import text as text_mod
 from .session import SessionProvider, entity_id, track_id
@@ -242,16 +243,25 @@ def _item_payload(item) -> dict | None:
 
 
 class HomeHandler(BaseHandler):
-    """Tidal's personalised front page, flattened into titled rows."""
+    """Tidal's personalised front page, flattened into titled rows.
+
+    `?page=home` and `?page=for_you` split what used to be one merged list.
+    Home and For You are separate pages in TIDAL's own client and separate
+    entries in our sidebar, and serving both from one endpoint meant For You
+    duplicated Home and had to fall back to a folder list to say anything at
+    all.
+    """
 
     async def get(self) -> None:
         session = self.session_or_503()
         if session is None:
             return
 
+        wanted = pages_mod.home_pages(self.get_argument("page", ""))
+
         def work():
             rows = []
-            for page_name in ("home", "for_you"):
+            for page_name in wanted:
                 getter = getattr(session, page_name, None)
                 if getter is None:
                     continue

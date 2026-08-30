@@ -113,6 +113,12 @@ The shelves TIDAL's own client opens on — shortcuts, forgotten favourites,
 recommendations, recently played — with artwork, straight from your account. Not
 a folder list.
 
+There is no separate "For You": TIDAL returns it as the same page. Measured
+against a real account, `for_you` and `home` give twenty rows each of which
+seventeen are identical — same titles, same items, same order — and the other
+three differ only in which record a "Because you listened to" shelf was seeded
+from. Home used to ask for both and show itself twice below the fold.
+
 Cards open the album or artist behind them; the play button on a card starts it
 without leaving the page.
 
@@ -120,8 +126,8 @@ without leaving the page.
 
 ![The player](docs/screenshots/player.png)
 
-Sidebar over the whole TIDAL tree — Home, For You, **Hi-Res**, your tracks,
-albums, artists, playlists and mixes — with search, drill-down, and a queue.
+Sidebar over the whole TIDAL tree — Home, **Hi-Res**, your tracks, albums,
+artists, playlists and mixes — with search, drill-down, and a queue.
 
 Every row carries its artwork, its artist and its album, and its running time,
 the way Apple Music and TIDAL's own client do. Library rows that arrive with
@@ -274,7 +280,7 @@ On Home the arrows walk the artwork grid — up and down between shelves, left a
 right along one — and `Enter` opens a card while `Shift+Enter` starts it, which
 is what the two halves of the card do to the mouse.
 
-In now playing: `A` artwork · `L` lyrics · `I` credits · `Space` play/pause.
+In now playing: `A` artwork · `L` lyrics · `I` the record · `Space` play/pause.
 
 Media keys need no configuration — they already drive MPRIS.
 
@@ -287,7 +293,7 @@ Every surface has an IPC route, so anything here can be bound to a key:
 omarchy-shell tidal overlay      # the player
 omarchy-shell tidal nowPlaying   # now playing, on the artwork
 omarchy-shell tidal lyrics       # now playing, on the lyrics
-omarchy-shell tidal info         # now playing, on the credits
+omarchy-shell tidal info         # now playing, on the record
 omarchy-shell tidal mini         # the bar's mini player
 omarchy-shell tidal favorite | radio | shuffle | repeat | consume
 omarchy-shell tidal sleep         # cycle the sleep timer

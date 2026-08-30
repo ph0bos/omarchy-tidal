@@ -469,3 +469,11 @@ test("a track with no length reported does not invent one", () => {
   const row = Library.fromTrack({ uri: "tidal:track:2", name: "Untimed" });
   assert.equal(row.duration, 0);
 });
+
+test("the sidebar has one door onto the personalised page", () => {
+  const uris = Library.navigation().map((n) => n.uri);
+  assert.ok(uris.includes("tidal:home"));
+  // For You is the same page as Home -- seventeen of twenty rows identical.
+  assert.ok(!uris.includes("tidal:for_you"));
+  assert.equal(uris[uris.length - 1], "queue");
+});

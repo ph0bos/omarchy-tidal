@@ -77,7 +77,11 @@ function lyrics(trackUri, onOk, onErr) {
 
 // Tidal's personalized home / For You rows.
 // -> { rows: [{ title, items: [{ uri, name, artist, image, type }] }] }
-function home(onOk, onErr) { _request("GET", "/home", null, onOk, onErr) }
+// `page` is "home", "for_you", or "" for both -- which is what the endpoint
+// answered before the argument existed.
+function home(page, onOk, onErr) {
+  _request("GET", "/home" + _q({ page: String(page || "") }), null, onOk, onErr)
+}
 
 // Favorites: toggle or query the heart state of a track.
 function isFavorite(trackUri, onOk, onErr) {
