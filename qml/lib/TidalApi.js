@@ -112,6 +112,13 @@ function album(uri, onOk, onErr) {
 // -> { codec, bit_depth, sample_rate, quality, is_hires }
 function streamFormat(onOk, onErr) { _request("GET", "/format", null, onOk, onErr) }
 
+// Where a piece of artwork is on disk, for anything that takes a path rather
+// than a url -- a notification daemon, for one.
+// -> { uri, path }
+function artFile(uri, onOk, onErr) {
+  _request("GET", "/art/file" + _q({ uri: uri }), null, onOk, onErr)
+}
+
 // What the current sleeve looks like: how light it is, and its colour.
 // -> { luma: 0..1, color: "#rrggbb" | null, isLight: bool }
 function palette(uri, onOk, onErr) {

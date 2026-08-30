@@ -280,9 +280,19 @@ Item {
       Behavior on y { NumberAnimation { duration: Design.slow; easing.type: Easing.InOutCubic } }
       Behavior on width { NumberAnimation { duration: Design.slow; easing.type: Easing.InOutCubic } }
 
-      Item {
+      TiltFrame {
         width: parent.width
         height: width
+        radius: Style.space(6)
+        // The sleeve is the subject of this page, so it is the one thing that
+        // leans. Only on the artwork face: tilting a 200px thumbnail beside a
+        // lyric sheet would be fidgeting.
+        enabled: root.face === "artwork"
+        maxAngle: 7
+        // The sleeve's own click area is the one that hears the pointer.
+        active: artHover.containsMouse
+        pointerX: artHover.mouseX
+        pointerY: artHover.mouseY
 
         RoundedImage {
           anchors.fill: parent

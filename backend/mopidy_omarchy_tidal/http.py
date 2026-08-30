@@ -626,6 +626,37 @@ async def _artwork_bytes(handler, uri: str, url: str, size: int):
     return response.body, url
 
 
+class ArtFileHandler(BaseHandler):
+    """Where a piece of artwork is on disk, fetching it first if need be.
+
+    Notification daemons take a file path, not a URL, and the bytes are already
+    in the cache for anything that has been on screen. This hands over the path
+    rather than a second copy.
+    """
+
+    async def get(self) -> None:
+        uri = self.get_argument("uri", "")
+        try:
+            size = max(80, min(1280, int(self.get_argument("size", "320"))))
+        except ValueError:
+            size = 320
+
+        if images_mod.split(uri) is None:
+            self.set_status(400)
+            self.write_json({"error": "expected a tidal: uri"})
+            return
+
+        payload, url = await _artwork_bytes(self, uri, "", size)
+        if payload is None:
+            self.set_status(404)
+            self.write_json({"error": "no artwork for " + uri})
+            return
+
+        key = url or f"{uri}@{size}"
+        path = images_mod.path_for(key, images_mod.cache_dir())
+        self.write_json({"uri": uri, "path": str(path)})
+
+
 class PaletteHandler(BaseHandler):
     """How light a sleeve is, and what colour it is.
 
@@ -1041,6 +1072,7 @@ def factory(config, core):
         (r"/format", FormatHandler, kwargs),
         (r"/art", ArtHandler, kwargs),
         (r"/palette", PaletteHandler, kwargs),
+        (r"/art/file", ArtFileHandler, kwargs),
         (r"/entity", EntityHandler, kwargs),
         (r"/library", LibraryHandler, kwargs),
         (r"/playlists", PlaylistsHandler, kwargs),

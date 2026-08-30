@@ -384,6 +384,34 @@ Item {
       }
     }
 
+    // ---- options ----
+    //
+    // Omarchy's own Toggle, so a setting in this plugin looks like a setting
+    // anywhere else in the shell.
+    Column {
+      width: parent.width
+      spacing: Style.space(6)
+      visible: root.signedIn
+
+      Text {
+        textFormat: Text.PlainText
+        text: "OPTIONS"
+        color: Color.muted
+        font.family: root.fontFamily
+        font.pixelSize: Style.font.caption
+        font.letterSpacing: 1.3
+        bottomPadding: Style.space(2)
+      }
+
+      Toggle {
+        width: parent.width
+        label: "Announce each track"
+        description: "A notification with the sleeve, as playback moves on"
+        checked: root.svc ? root.svc.notifyOnTrackChange : false
+        onClicked: if (root.svc) root.svc.setNotify(!root.svc.notifyOnTrackChange)
+      }
+    }
+
     // ---- idle: offer sign-in ----
     Column {
       width: parent.width

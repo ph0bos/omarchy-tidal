@@ -97,6 +97,16 @@ artwork is lifted in lightness until it clears 3:1 rather than being swapped for
 the theme accent -- `Design.contrastLightness()` -- and a greyscale cover
 reports no colour at all, which is the honest answer.
 
+**Two hover areas over the same pixels means only the top one hears anything.**
+`TiltFrame` takes `active`/`pointerX`/`pointerY` from its caller rather than
+listening itself, because every surface that wants a tilt already has a
+MouseArea for its click, and a second one underneath would simply never fire.
+
+**The plugin's own settings live in `~/.config/omarchy-tidal/settings.json`**,
+read through a `FileView` in the service. Not the bar widget's schema: a
+notification preference is not a bar concern, and that entry disappears if
+someone removes the widget.
+
 **Nothing is hardcoded black or white.** Omarchy ships light themes, so even
 the washes over album art derive from `Color.menu.background` and
 `Color.menu.text`. A literal `#000000` scrim is a bug on half the themes.

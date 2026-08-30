@@ -73,6 +73,13 @@ the saved session and restarts Mopidy, so it means what it says.
 
 Before it is set up, the same surface is the sign-in wizard.
 
+**Announce each track** puts a notification on screen as playback moves on —
+sleeve, title, artist and album — replacing the previous one rather than
+stacking. It is on by default and lives in Settings, or
+`omarchy-shell tidal notifications` toggles it. The plugin's own options are
+kept in `~/.config/omarchy-tidal/settings.json`, beside the shell's config
+rather than inside the bar widget's entry, which would vanish with the widget.
+
 ## Removing it
 
 ```bash
@@ -148,6 +155,11 @@ before the first line is marked the same way.
 
 `I` gives you the record instead — year, length, credits, editorial review, and
 exactly what is coming out of the speakers.
+
+The sleeve leans toward the pointer, with a highlight that follows it across
+the artwork — small angles and a slow return, because the flourish is the record
+behaving like an object rather than the panel showing off. The shelf tiles do a
+smaller version of the same thing.
 
 **The view reads the sleeve.** The companion measures each cover — how light it
 is, and what colour it is — and the view uses both. A white cover used to lift
@@ -260,6 +272,8 @@ omarchy-shell tidal mini         # the bar's mini player
 omarchy-shell tidal favorite | radio | shuffle | repeat | consume
 omarchy-shell tidal sleep         # cycle the sleep timer
 omarchy-shell tidal sleepOff      # cancel it
+omarchy-shell tidal notifications # announce each track, or stop
+omarchy-shell tidal announce      # announce this one now
 omarchy-shell tidal playPause | next | previous
 ```
 

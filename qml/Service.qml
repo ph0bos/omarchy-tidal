@@ -1,4 +1,5 @@
 import QtQuick
+import Quickshell
 import Quickshell.Io
 import Quickshell.Services.Mpris
 import "lib/MopidyRpc.js" as Rpc
@@ -357,6 +358,11 @@ Item {
   onTrackUriChanged: {
     // The queue moving on is how a "sleep after this track" timer arrives.
     if (root.sleepAfterTrack) root.sleepNow()
+
+    // Announce it, but not the track that happens to be loaded when the shell
+    // starts -- that is not a change anyone made.
+    if (root.seenATrack) Qt.callLater(root.announceTrack)
+    if (root.trackUri !== "") root.seenATrack = true
     root.anchorPosition(0)
     Qt.callLater(root.syncPosition)
     root.favorite = false
@@ -515,6 +521,84 @@ Item {
 
   function seekTo(ms) { root.commitSeek(ms) }
 
+  // ---- settings ------------------------------------------------------------
+  //
+  // The plugin's own options, kept beside the shell's config rather than in the
+  // bar widget's schema: a notification preference is not a bar concern, and
+  // the widget entry disappears if someone removes the widget.
+  readonly property string settingsPath:
+    (Quickshell.env("XDG_CONFIG_HOME") || (Quickshell.env("HOME") + "/.config"))
+    + "/omarchy-tidal/settings.json"
+
+  // Announce each track as it starts. On by default: someone who installs a
+  // music player generally wants to be told what is playing.
+  property bool notifyOnTrackChange: true
+
+  FileView {
+    id: settingsFile
+    path: root.settingsPath
+    watchChanges: true
+    printErrors: false
+    atomicWrites: true
+    onFileChanged: reload()
+    onLoaded: {
+      if (!root.alive) return
+      try {
+        var saved = JSON.parse(text() || "{}")
+        if (saved && saved.notifyOnTrackChange !== undefined) {
+          root.notifyOnTrackChange = !!saved.notifyOnTrackChange
+        }
+      } catch (e) { /* a corrupt file is a file we overwrite, not a crash */ }
+    }
+  }
+
+  function saveSettings() {
+    settingsFile.setText(JSON.stringify({
+      notifyOnTrackChange: root.notifyOnTrackChange
+    }, null, 2) + "\n")
+  }
+
+  function setNotify(on) {
+    root.notifyOnTrackChange = !!on
+    root.saveSettings()
+    root.osd(root.notifyOnTrackChange ? "Track notifications on"
+                                      : "Track notifications off", "media")
+    return true
+  }
+
+  // ---- track notifications -------------------------------------------------
+  //
+  // Fetches the sleeve's path first, because a notification daemon wants a file
+  // rather than a url, and the bytes are already cached for anything that has
+  // been on screen.
+  property bool seenATrack: false
+
+  function announceTrack() {
+    if (!root.notifyOnTrackChange || !root.hasTrack) return
+    if (!root.companionAvailable || !root.isTidalTrack) { root.sendNotification(""); return }
+    var forUri = root.trackUri
+    Tidal.artFile(forUri, function(info) {
+      if (!root.alive || forUri !== root.trackUri) return
+      root.sendNotification(info && info.path ? String(info.path) : "")
+    }, function() {
+      if (!root.alive || forUri !== root.trackUri) return
+      root.sendNotification("")
+    })
+  }
+
+  function sendNotification(iconPath) {
+    var body = root.artist
+    if (root.album !== "") body = body === "" ? root.album : body + "  \u00b7  " + root.album
+
+    var args = ["notify-send", "--app-name=TIDAL", "--expire-time=5000",
+                // Replace the last one rather than stacking a card per track.
+                "--hint=string:x-canonical-private-synchronous:omarchy-tidal"]
+    if (iconPath !== "") args.push("--icon=" + iconPath)
+    args.push(root.plainMessage(root.title))
+    args.push(root.plainMessage(body))
+    Quickshell.execDetached(args)
+  }
+
   // ---- surfaces ------------------------------------------------------------
 
   // `face` is only meaningful for the now-playing view, which can be summoned
@@ -606,6 +690,7 @@ Item {
       repeat: root.repeatMode,
       consume: root.consume,
       sleep: root.sleepLabel,
+      notify: root.notifyOnTrackChange,
       lyricsSource: root.lyrics && root.lyrics.source ? root.lyrics.source : "",
       lyricsSynced: root.lyrics && root.lyrics.synced ? root.lyrics.synced.length : 0,
       lyricsPlain: root.lyrics && root.lyrics.plain ? root.lyrics.plain.length : 0,
@@ -641,6 +726,8 @@ Item {
     function consume(): string { return root.toggleConsume() ? "ok" : "unhandled" }
     function sleep(): string { return root.cycleSleep() ? "ok" : "unhandled" }
     function sleepOff(): string { root.cancelSleep(); return "ok" }
+    function notifications(): string { return root.setNotify(!root.notifyOnTrackChange) ? "ok" : "unhandled" }
+    function announce(): string { root.announceTrack(); return "ok" }
     function playPause(): string { return root.playPause() ? "ok" : "unhandled" }
     function next(): string { return root.next() ? "ok" : "unhandled" }
     function previous(): string { return root.previous() ? "ok" : "unhandled" }
