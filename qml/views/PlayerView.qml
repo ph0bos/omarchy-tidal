@@ -567,7 +567,12 @@ Item {
         anchors.right: searchField.left
         anchors.rightMargin: Style.space(14)
         anchors.verticalCenter: parent.verticalCenter
+        // A detail page is layered over whatever list you came from, and
+        // `currentUri` still names that list -- so opening an album from the
+        // queue left a "Clear" over the album, pointed at a queue you could
+        // no longer see.
         visible: root.currentUri === "queue" && root.rows.length > 0
+                 && root.detailUri === ""
         text: "Clear"
         color: clearHover.containsMouse ? Color.urgent : Color.muted
         font.family: root.fontFamily

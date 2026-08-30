@@ -247,12 +247,29 @@ The visual design pass is done and drove the rest of it: one motion vocabulary,
 one artwork tile, one playhead, one grid. Screenshots in `docs/screenshots/` are
 current.
 
+0.8 was a fidelity pass against Apple Music and the native TIDAL client:
+
+- The sleeve's hover lighting is drawn with `QtQuick.Shapes`, so the shading has
+  a real direction and no banding, and only the one sleeve you are listening to
+  leans -- shelf tiles are static.
+- Search answers while you type (320ms debounce) and orders artists, then
+  albums, then tracks. Every track row carries its running time.
+- An album with no editorial review -- four in five of them -- falls back to the
+  artist's biography rather than showing an empty page, on both the album page
+  and the now-playing info face. The info face also lists the album's tracks.
+- Detail pages open at the top rather than at the last page's scroll position.
+
 Next, in the order that makes sense:
 
 1. **A settings surface** for the plugin's own options -- sign in and out,
    which account is signed in, and the widget settings that currently live only
    in the bar's schema.
-2. **Not TIDAL Connect.** Checked against tidalapi 0.8.11: it exposes nothing
+2. **A grid mode for the library.** My Albums and My Artists are lists; both
+   native clients default to a wall of covers. The pieces exist (`ArtCard`, the
+   Home shelves, the artist discography grid) but the keyboard model would need
+   two dimensions, and that model has been broken twice already -- so it is a
+   deliberate next step rather than a quick one.
+3. **Not TIDAL Connect.** Checked against tidalapi 0.8.11: it exposes nothing
    for it. The only `device` in the whole package is `deviceType=BROWSER` on
    page requests and the OAuth device-code login. Connect is a device-side
    protocol that TIDAL's own clients speak to targets found on the network, and

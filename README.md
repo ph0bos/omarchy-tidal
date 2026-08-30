@@ -123,13 +123,21 @@ without leaving the page.
 Sidebar over the whole TIDAL tree — Home, For You, **Hi-Res**, your tracks,
 albums, artists, playlists and mixes — with search, drill-down, and a queue.
 
-Every row carries its artwork, its artist and its album, the way Apple Music and
-TIDAL's own client do. Library rows that arrive with nothing but a name have the
-rest filled in behind them, and the playing row is marked on its sleeve.
+Every row carries its artwork, its artist and its album, and its running time,
+the way Apple Music and TIDAL's own client do. Library rows that arrive with
+nothing but a name have the rest filled in behind them, and the playing row is
+marked on its sleeve.
+
+**Search answers while you type**, a third of a second after you stop — one
+request for a word, not one per letter — and answers with people first: artists,
+then records, then songs. Searching for a band used to bury the band under a
+dozen of their own tracks. `Enter` commits and hands the keyboard to the
+results, so the next arrow key moves through them.
 
 ### Artist and album pages
 
 ![An artist page](docs/screenshots/artist.png)
+![An album page](docs/screenshots/album.png)
 
 Photography, biography, editorial reviews, credits, top tracks, discography and
 similar artists. TIDAL's inline markup is cleaned up and the artists it
@@ -156,6 +164,8 @@ larger, brighter and unmistakable among the rest, and clicking any line seeks to
 it. A long instrumental is marked with dots that fill as it runs down, so a solo
 reads as the song still playing rather than as a sheet that has stuck; the intro
 before the first line is marked the same way.
+
+![The record](docs/screenshots/info.png)
 
 `I` gives you the record instead: the album, its artist, the year, the running
 time, the exact release date and the label off the back of the sleeve, what is
