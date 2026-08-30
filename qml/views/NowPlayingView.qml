@@ -733,6 +733,7 @@ Item {
 
       // ---- info ----
       Flickable {
+        id: infoFlick
         anchors.top: eyebrow.bottom
         anchors.topMargin: Style.space(16)
         anchors.left: parent.left
@@ -998,6 +999,23 @@ Item {
             font.pixelSize: Style.font.bodySmall
           }
         }
+      }
+
+      // The face tabs float over the bottom of this pane, so the track list
+      // has to arrive under them rather than stop dead behind them. Same
+      // treatment as the lyric sheet, for the same reason.
+      Rectangle {
+        anchors.bottom: infoFlick.bottom
+        anchors.left: infoFlick.left
+        anchors.right: infoFlick.right
+        height: Style.space(48)
+        opacity: root.face === "info" ? 1 : 0
+        visible: opacity > 0.01
+        gradient: Gradient {
+          GradientStop { position: 0.0; color: Qt.rgba(root.scrim.r, root.scrim.g, root.scrim.b, 0) }
+          GradientStop { position: 1.0; color: Qt.rgba(root.scrim.r, root.scrim.g, root.scrim.b, 0.9) }
+        }
+        Behavior on opacity { NumberAnimation { duration: Design.base } }
       }
     }
   }

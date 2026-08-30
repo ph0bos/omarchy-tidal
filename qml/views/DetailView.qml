@@ -258,7 +258,11 @@ Item {
     if (isArtist) {
       var roles = page.roles || []
       for (var i = 0; i < roles.length; i++) {
-        parts.push(String(roles[i]).replace("Role.", ""))
+        // "Role.main_artist" -> "Main artist". TIDAL sends a Python enum's
+        // repr, which is not a thing to print at anyone.
+        var role = String(roles[i]).replace("Role.", "").replace(/_/g, " ")
+        if (role === "") continue
+        parts.push(role.charAt(0).toUpperCase() + role.slice(1))
       }
       return parts.join(" · ")
     }
