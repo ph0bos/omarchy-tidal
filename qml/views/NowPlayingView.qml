@@ -48,6 +48,37 @@ Item {
                                          Color.menu.background.b, 1)
   readonly property color onArt: Color.menu.text
 
+  // Optical alignment between the sleeve and the column beside it.
+  //
+  // A picture's top is a hard edge; a line of text's top is the top of its line
+  // box, which carries the ascent above the capitals. Aligning the two puts the
+  // words a few pixels low, and two columns that are almost level read as a
+  // mistake rather than as a decision. Qt reports both numbers, so the gap is
+  // measured rather than nudged.
+  FontMetrics {
+    id: eyebrowMetrics
+    font.family: root.fontFamily
+    font.pixelSize: Style.font.caption
+  }
+
+  FontMetrics {
+    id: metaMetrics
+    font.family: root.fontFamily
+    font.pixelSize: Style.font.title
+  }
+
+  readonly property real eyebrowCapGap: eyebrowMetrics.ascent - eyebrowMetrics.capitalHeight
+  readonly property real metaCapGap: metaMetrics.ascent - metaMetrics.capitalHeight
+
+  // What the column beside the sleeve is, said once at its top. On the lyric
+  // sheet it also carries where the words came from, which is a real question
+  // when the companion falls back from TIDAL to LRCLIB.
+  readonly property string paneLabel: {
+    if (root.face === "info") return "ALBUM"
+    if (root.source === "") return "LYRICS"
+    return "LYRICS \u00b7 " + (root.source === "tidal" ? "TIDAL" : root.source.toUpperCase())
+  }
+
   readonly property string artUrl: svc ? Tidal.artProxy(svc.artUrl, 640) : ""
 
   // ---- lyrics -------------------------------------------------------------
@@ -253,6 +284,10 @@ Item {
       Column {
         width: parent.width
         spacing: Style.space(4)
+        // Pulled up by the ascent gap so the space between the sleeve and the
+        // title is the space you can see, not the space plus the invisible
+        // room above the capitals.
+        topPadding: -root.metaCapGap
 
         Text {
           textFormat: Text.PlainText
@@ -320,35 +355,38 @@ Item {
       id: pane
       x: stage.artSize + Style.space(30)
       width: Math.max(0, stage.width - x)
-      height: stage.height
+      // Lifted by the ascent gap so the eyebrow's capitals sit on the sleeve's
+      // top edge, and made that much taller so it still reaches the bottom.
+      y: -root.eyebrowCapGap
+      height: stage.height + root.eyebrowCapGap
       opacity: root.face === "artwork" ? 0 : 1
       visible: opacity > 0.01
 
       Behavior on x { NumberAnimation { duration: Design.slow; easing.type: Easing.InOutCubic } }
       Behavior on opacity { NumberAnimation { duration: Design.base; easing.type: Easing.OutCubic } }
 
+      Text {
+        id: eyebrow
+        textFormat: Text.PlainText
+        anchors.top: parent.top
+        anchors.left: parent.left
+        text: root.paneLabel
+        color: Color.muted
+        font.family: root.fontFamily
+        font.pixelSize: Style.font.caption
+        font.letterSpacing: 1.3
+      }
+
       // ---- lyrics ----
       Item {
-        anchors.fill: parent
+        anchors.top: eyebrow.bottom
+        anchors.topMargin: Style.space(16)
+        anchors.left: parent.left
+        anchors.right: parent.right
+        anchors.bottom: parent.bottom
         opacity: root.face === "lyrics" ? 1 : 0
         visible: opacity > 0.01
         Behavior on opacity { NumberAnimation { duration: Design.base } }
-
-        Text {
-          textFormat: Text.PlainText
-          id: lyricSource
-          anchors.top: parent.top
-          anchors.right: parent.right
-          // Clear of the collapse button that sits in the view's corner.
-          anchors.rightMargin: Style.space(26)
-          visible: root.source !== ""
-          text: root.source === "tidal" ? "TIDAL" : root.source.toUpperCase()
-          color: Color.muted
-          opacity: 0.6
-          font.family: root.fontFamily
-          font.pixelSize: Style.font.caption
-          font.letterSpacing: 1.2
-        }
 
         Text {
           textFormat: Text.PlainText
@@ -552,7 +590,11 @@ Item {
 
       // ---- info ----
       Flickable {
-        anchors.fill: parent
+        anchors.top: eyebrow.bottom
+        anchors.topMargin: Style.space(16)
+        anchors.left: parent.left
+        anchors.right: parent.right
+        anchors.bottom: parent.bottom
         opacity: root.face === "info" ? 1 : 0
         visible: opacity > 0.01
         contentHeight: infoColumn.implicitHeight

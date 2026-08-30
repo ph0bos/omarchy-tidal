@@ -70,6 +70,13 @@ covers anything leaving for another surface: `Service.osd()` strips angle
 brackets, and "Open in TIDAL" checks the scheme and host before handing a url to
 the desktop opener.
 
+**Align text to its capitals, not to its line box.** A picture's top is a hard
+edge; a Text's top carries the ascent above the capitals, so anchoring the two
+leaves the words a few pixels low and two columns read as almost-but-not-quite
+level. `FontMetrics.ascent - FontMetrics.capitalHeight` is the gap, and it is
+measured rather than nudged -- see the now-playing eyebrow and the wordmark in
+the overlay header.
+
 **Nothing is hardcoded black or white.** Omarchy ships light themes, so even
 the washes over album art derive from `Color.menu.background` and
 `Color.menu.text`. A literal `#000000` scrim is a bug on half the themes.
