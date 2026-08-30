@@ -198,7 +198,8 @@ def test_the_dominant_hue_wins_rather_than_the_average():
 def test_hsv_round_trips():
     for rgb in [(230, 120, 30), (40, 60, 220), (12, 200, 90)]:
         hue, saturation, value = palette.to_hsv(rgb)
-        assert max(abs(a - b) for a, b in zip(palette.from_hsv(hue, saturation, value), rgb, strict=True)) <= 2
+        back = palette.from_hsv(hue, saturation, value)
+        assert max(abs(a - b) for a, b in zip(back, rgb, strict=True)) <= 2
 
 
 def test_analyse_pixels_copes_with_nothing():
