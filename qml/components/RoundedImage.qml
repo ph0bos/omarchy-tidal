@@ -22,6 +22,19 @@ Item {
   property color placeholderColor: Qt.rgba(Color.muted.r, Color.muted.g, Color.muted.b, 0.12)
   property int fillMode: Image.PreserveAspectCrop
 
+  // Decode to this many pixels a side, rather than to whatever the file
+  // happens to be.
+  //
+  // A 320x320 sleeve decodes to 400 KB of RGBA whether it is drawn at 320
+  // pixels or at 34, and a library view holds a lot of rows. Set it to roughly
+  // the size the image is drawn at -- allowing for a HiDPI screen -- and Qt
+  // keeps that instead. 0 means "as the file is", for anything drawn at full
+  // size.
+  //
+  // Pin it rather than binding it to `width`: Qt reloads the image when this
+  // changes, so an animating size would re-decode on every frame.
+  property int decodeSize: 0
+
   readonly property bool ready: image.status === Image.Ready
 
   // Rendered to a texture and used only as the mask; never drawn itself.
@@ -60,6 +73,8 @@ Item {
       id: image
       anchors.fill: parent
       source: root.source
+      sourceSize.width: root.decodeSize
+      sourceSize.height: root.decodeSize
       fillMode: root.fillMode
       asynchronous: true
       cache: true

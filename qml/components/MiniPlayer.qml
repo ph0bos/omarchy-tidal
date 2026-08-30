@@ -51,6 +51,7 @@ Item {
         RoundedImage {
           anchors.fill: parent
           radius: Style.space(4)
+          decodeSize: 192
           source: root.svc ? Tidal.artProxy(root.svc.artUrl, 320) : ""
         }
 

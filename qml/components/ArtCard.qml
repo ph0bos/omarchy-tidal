@@ -66,6 +66,7 @@ Item {
       // Round for people, softly square for records -- the same distinction
       // the detail pages already make.
       radius: root.isArtist ? width / 2 : Style.space(4)
+      decodeSize: 256
       source: root.entry && root.entry.image ? Tidal.artProxy(String(root.entry.image), 320) : ""
 
       // The picture leans towards the cursor. Scaling the masked item scales

@@ -76,6 +76,7 @@ Item {
         id: barArt
         anchors.fill: parent
         radius: Style.space(3)
+        decodeSize: 96
         source: root.svc ? Tidal.artProxy(root.svc.artUrl, 160) : ""
       }
 

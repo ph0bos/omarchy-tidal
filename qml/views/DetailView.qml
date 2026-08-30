@@ -256,6 +256,7 @@ Item {
           height: width
           // Circular for people, softly rounded for records.
           radius: root.isArtist ? width / 2 : Style.space(5)
+          decodeSize: 320
           source: root.page && root.page.image ? Tidal.artProxy(root.page.image, 640) : ""
         }
 

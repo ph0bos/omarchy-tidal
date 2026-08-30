@@ -112,6 +112,7 @@ BarWidget {
       width: visible ? Math.round(root.barSize * 0.58) : 0
       height: width
       radius: Style.space(2)
+      decodeSize: 64
       visible: !root.vertical && root.hasArt
       source: root.artUrl
     }

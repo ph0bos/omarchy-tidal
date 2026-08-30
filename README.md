@@ -267,9 +267,15 @@ A USB or S/PDIF DAC generally accepts the full set.
 alpha it fails to import and MPRIS never registers — which breaks the bar
 widget, the media keys and the OSD. The setup script handles this.
 
-**Memory:** roughly 130 MB for the Mopidy backend. That is more than a Rust
-daemon like `spotifyd` uses, and it is the price of lossless — still around 7×
-lighter than the official desktop client, with no Electron window.
+**Memory**, measured rather than estimated: the Mopidy backend sits at about
+150 MB resident with the companion extension in-process. The interface itself
+adds roughly 70 MB to the Quickshell process once every surface has been
+visited, and settles near 50 MB a minute after you close it and the artwork
+cache ages out.
+
+The backend is the larger half and it is the price of lossless — more than a
+Rust daemon like `spotifyd` uses, far less than an Electron client, and it only
+comes down by replacing Mopidy, which is a different project.
 
 ## Development
 

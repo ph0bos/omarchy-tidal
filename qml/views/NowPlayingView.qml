@@ -189,6 +189,10 @@ Item {
     source: root.artUrl
     fillMode: Image.PreserveAspectCrop
     blur: 1.0
+    // Blurred past recognition and then faded, so it has no use for detail:
+    // 128 pixels a side is a fortieth of the memory of the full sleeve and
+    // looks exactly the same once the blur is on it.
+    decodeSize: 128
     opacity: 0.28
     visible: source !== ""
   }
@@ -244,6 +248,9 @@ Item {
           anchors.fill: parent
           radius: Style.space(6)
           source: root.artUrl
+          // Pinned to the biggest it is ever drawn: this one animates between
+          // faces, and a bound decode size would re-decode on every frame.
+          decodeSize: 512
         }
 
         Rectangle {

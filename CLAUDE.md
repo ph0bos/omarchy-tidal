@@ -167,6 +167,30 @@ mkdir -p /tmp/qsimports && ln -sfn /usr/share/omarchy/shell /tmp/qsimports/qs
 /usr/lib/qt6/bin/qmllint -I /usr/lib/qt6/qml -I /tmp/qsimports qml/**/*.qml
 ```
 
+## Memory, measured
+
+`ps -o rss` against the live shell. Find its pid with `qs list --all`, not by
+matching the command line -- that also matches the shell running the
+measurement, which reports a very reassuring 5 MB.
+
+```
+omarchy shell, plugin loaded, overlay never opened   ~560 MB
+  ... every surface visited (home, library, now playing)  ~630 MB
+  ... at rest, a minute after closing                     ~615 MB
+mopidy + companion extension                          ~150 MB
+```
+
+So the interface costs about 70 MB at peak and 50 MB at rest, against a shell
+that is already 560 MB before it opens. **Run-to-run variance on identical code
+is ~8 MB**, which is the floor for believing any change: a 2 MB "improvement" is
+noise, and two of those cost an hour to chase.
+
+Artwork is decoded at the size it is drawn (`RoundedImage.decodeSize`) rather
+than at the size of the file -- a 34px row thumbnail retaining a 320x320 pixmap
+is wrong on principle and wasteful of decode time. It did not move RSS: Qt's
+pixmap cache was already evicting under its own cap. Keep the property, do not
+expect the next such change to show up either.
+
 ## Where it stands
 
 Working and verified against a real account: hi-res playback, gapless, seeking,

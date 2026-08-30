@@ -168,6 +168,9 @@ Item {
         // Round for people, softly square for records -- the distinction the
         // detail pages and the Home shelves already make.
         radius: root.rowType === "artist" ? width / 2 : Style.space(3)
+        // Drawn at 34px; a full-size decode would cost ten times the memory
+        // for a thumbnail, across every row in a library.
+        decodeSize: 96
         source: root.artSource
       }
 
