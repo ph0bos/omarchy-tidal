@@ -489,7 +489,7 @@ The marketplace's own submission rules run in CI too, at a pinned commit, so a
 listing problem shows up on a branch rather than in a review comment days later:
 
 ```bash
-curl -sSfL https://codeload.github.com/HANCORE-linux/omarchy-plugin-marketplace/tar.gz/$(
+curl -sSfL https://codeload.github.com/omacom/omarchy-plugin-marketplace/tar.gz/$(
   python3 -c "import json;print(json.load(open('scripts/marketplace-baseline.json'))['commit'])"
 ) | tar -xz -C /tmp --strip-components=1 --wildcards '*/scripts/*.mjs'
 node scripts/marketplace-baseline.mjs /tmp/scripts .
