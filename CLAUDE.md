@@ -154,6 +154,23 @@ every boundary, tracks reporting as "infinite source", and seeking that stopped
 playback. `backend/gapless.py` rebinds `as_stream` to write per-track
 manifests. Verified: 0 non-playing samples of 77 across a boundary.
 
+**Two of mopidy-tidal's caches share one file, and it broke every playlist.**
+`TidalPlaylistsProvider._playlists_metadata` and `TidalLibraryProvider._playlist_cache`
+are both a `PlaylistMetadataCache`, so both resolve to
+`<cache>/tidal/playlist_metadata/`. `as_list()` fills the first through
+`refresh(include_items=False)`, which never fetches the tracks -- it writes
+`[mock_track] * num_tracks`, and `mock_track` is `Track(uri="tidal:track:0:0:0")`.
+The library provider reads that same file, takes its cache-hit branch and hands
+back a row of placeholders. `core.tracklist.add(uris=[...])` *is*
+`core.library.lookup()`, so "play this playlist" queued nothing playable -- and
+because the cache is on disk, one listing of the playlists broke every play-all
+after it, for good. Picking a single track still worked, which is what issue #1
+described. `backend/playlist_lookup.py` repairs it for every Mopidy client the
+way `gapless.py` does, and adds the `_lookup_mix` the library provider never had
+(a `tidal:mix:` uri expanded to nothing at all). The plugin does not rely on the
+repair having taken: `/playlist/uris` names the tracks, and `DetailView.withUris()`
+sends those. Play-all on a container uri is a trap; send the tracks you mean.
+
 **PipeWire defaults to `allowed-rates = [48000]`** and silently resamples every
 hi-res stream. `omarchy-tidal-setup audio` fixes it. The *output device* still
 has the last word — many displays reject 88.2 kHz over HDMI/DisplayPort.
@@ -179,8 +196,8 @@ Views stay loaded once visited and the capture is held open for a grace period.
 ## Checks
 
 ```bash
-python3 -m pytest tests -q          # 39
-node --test tests/js.test.mjs       # 44
+python3 -m pytest tests -q          # 63
+node --test tests/js.test.mjs       # 54
 python3 scripts/validate-manifest.py .
 python3 scripts/check-textformat.py .
 python3 scripts/check-async-guards.py .

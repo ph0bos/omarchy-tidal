@@ -381,8 +381,23 @@ Item {
 
   function queueRow(row) {
     if (!row || !row.uri || row.type === "directory") return
+    // A playlist has to be named track by track: Mopidy expands a container
+    // uri through mopidy-tidal, which answers a playlist from a cache holding
+    // placeholders rather than tracks. See DetailView.withUris().
+    if (row.type === "playlist") { root.queuePlaylist(String(row.uri)); return }
     Rpc.queue([row.uri], function() {
       if (root.alive && root.svc) root.svc.osd("Added to queue", "media")
+    }, function(err) { if (root.alive) root.errorText = err })
+  }
+
+  function queuePlaylist(uri) {
+    Tidal.playlistUris(uri, function(payload) {
+      if (!root.alive) return
+      var uris = (payload && payload.uris) || []
+      if (!uris.length) { root.errorText = "Nothing in this playlist can be played."; return }
+      Rpc.queue(uris, function() {
+        if (root.alive && root.svc) root.svc.osd("Added to queue", "media")
+      }, function(err) { if (root.alive) root.errorText = err })
     }, function(err) { if (root.alive) root.errorText = err })
   }
 

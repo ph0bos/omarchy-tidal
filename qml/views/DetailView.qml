@@ -216,16 +216,43 @@ Item {
     })
   }
 
+  // What to hand the tracklist for "play all" and "queue all".
+  //
+  // An album or an artist expands correctly from its own uri: Mopidy resolves
+  // a container through `core.library.lookup()`, and mopidy-tidal answers
+  // those from the session. A playlist it answers out of a cache its *own*
+  // playlists provider fills with placeholder tracks -- `tidal:track:0:0:0`,
+  // one per entry -- so the queue filled with nothing playable and play did
+  // nothing at all. The companion names the real tracks instead, which also
+  // reaches past the hundred rows the page itself draws.
+  function withUris(onReady) {
+    if (!root.isPlaylist) { onReady([root.uri]); return }
+    var want = root.uri
+    Tidal.playlistUris(want, function(payload) {
+      if (!root.alive || root.uri !== want) return
+      var uris = (payload && payload.uris) || []
+      if (!uris.length) { root.errorText = "Nothing in this playlist can be played."; return }
+      onReady(uris)
+    }, function(err) {
+      if (!root.alive || root.uri !== want) return
+      root.errorText = err
+    })
+  }
+
   function playAll() {
     if (!root.page) return
-    Rpc.playNow([root.uri], null, function(err) { if (root.alive) root.errorText = err })
+    root.withUris(function(uris) {
+      Rpc.playNow(uris, null, function(err) { if (root.alive) root.errorText = err })
+    })
   }
 
   function queueAll() {
     if (!root.page) return
-    Rpc.queue([root.uri], function() {
-      if (root.alive && root.svc) root.svc.osd("Added to queue", "media")
-    }, function(err) { if (root.alive) root.errorText = err })
+    root.withUris(function(uris) {
+      Rpc.queue(uris, function() {
+        if (root.alive && root.svc) root.svc.osd("Added to queue", "media")
+      }, function(err) { if (root.alive) root.errorText = err })
+    })
   }
 
   function openInBrowser() {

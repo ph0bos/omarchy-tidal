@@ -33,7 +33,11 @@ class Extension(ext.Extension):
         return schema
 
     def setup(self, registry) -> None:
-        from . import gapless, http  # noqa: PLC0415 - deferred so config errors surface first
+        from . import (  # noqa: PLC0415 - deferred so config errors surface first
+            gapless,
+            http,
+            playlist_lookup,
+        )
 
         # The app name becomes the URL prefix: /omarchy-tidal/<endpoint>.
         registry.add("http:app", {"name": "omarchy-tidal", "factory": http.factory})
@@ -42,3 +46,9 @@ class Extension(ext.Extension):
         # manifest to one shared file, which collides at every track boundary.
         # See gapless.py for the full explanation.
         gapless.install()
+
+        # Two of mopidy-tidal's caches share one file, so core.library.lookup()
+        # answers a playlist with placeholder tracks and a mix with nothing at
+        # all -- which is what "play this playlist" is built on. See
+        # playlist_lookup.py.
+        playlist_lookup.install()

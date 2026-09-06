@@ -27,6 +27,7 @@ import tornado.httpclient
 import tornado.ioloop
 import tornado.web
 
+from . import expand as expand_mod
 from . import images as images_mod
 from . import lyrics as lyrics_mod
 from . import pages as pages_mod
@@ -1032,6 +1033,44 @@ class PlaylistEditHandler(BaseHandler):
             self.write_json({"error": str(exc)})
 
 
+class PlaylistUrisHandler(BaseHandler):
+    """The track uris of a playlist, for handing straight to the tracklist.
+
+    Mopidy expands a container uri through `core.library.lookup()`, and
+    mopidy-tidal answers a playlist there from a cache its own playlists
+    provider fills with placeholders -- see `playlist_lookup.py`, which repairs
+    that for every client. This endpoint means the plugin does not have to
+    depend on the repair having taken: it names the tracks it wants played.
+
+    Same shape as `/radio`, and used the same way.
+    """
+
+    async def get(self) -> None:
+        uri = self.get_argument("uri", "")
+        parsed = images_mod.split(uri)
+        if parsed is None or parsed[0] != "playlist":
+            self.set_status(400)
+            self.write_json({"error": "expected a tidal:playlist: uri"})
+            return
+
+        session = self.session_or_503()
+        if session is None:
+            return
+
+        def work():
+            return expand_mod.playlist_track_uris(session.playlist(parsed[1]))
+
+        try:
+            uris = await self.run(work)
+        except Exception as exc:
+            logger.warning("omarchy-tidal: playlist uris failed: %s", exc)
+            self.set_status(502)
+            self.write_json({"error": str(exc)})
+            return
+
+        self.write_json({"uri": uri, "uris": uris})
+
+
 class EntityHandler(BaseHandler):
     """What a URI is: name, artist, year, art.
 
@@ -1086,5 +1125,6 @@ def factory(config, core):
         (r"/entity", EntityHandler, kwargs),
         (r"/library", LibraryHandler, kwargs),
         (r"/playlists", PlaylistsHandler, kwargs),
+        (r"/playlist/uris", PlaylistUrisHandler, kwargs),
         (r"/playlist", PlaylistEditHandler, kwargs),
     ]
