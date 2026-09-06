@@ -134,6 +134,17 @@ function playlistPage(uri, onOk, onErr) {
   _request("GET", "/playlist" + _q({ uri: uri }), null, onOk, onErr)
 }
 
+// Every track uri in a playlist, in order, however long it is.
+//
+// Mopidy expands a container uri itself, but mopidy-tidal answers a playlist
+// there out of a cache its own playlists provider fills with placeholder
+// tracks, so "play this playlist" queued nothing playable. Naming the tracks
+// is what the radio does too, and it does not depend on that being repaired.
+// -> { uri, uris: ["tidal:track:<id>", ...] }
+function playlistUris(uri, onOk, onErr) {
+  _request("GET", "/playlist/uris" + _q({ uri: uri }), null, onOk, onErr)
+}
+
 // The playlists this account can write to -- the ones the user made.
 // -> { items: [{ uri, name, num_tracks, image }] }
 function playlists(onOk, onErr) { _request("GET", "/playlists", null, onOk, onErr) }
