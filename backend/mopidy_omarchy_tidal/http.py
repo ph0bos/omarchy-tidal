@@ -33,6 +33,7 @@ from . import lyrics as lyrics_mod
 from . import pages as pages_mod
 from . import palette as palette_mod
 from . import text as text_mod
+from .player import MopidyPlayer, Player
 from .session import SessionProvider, entity_id, track_id
 
 logger = logging.getLogger(__name__)
@@ -62,9 +63,9 @@ _art_writes = 0
 
 
 class BaseHandler(tornado.web.RequestHandler):
-    def initialize(self, provider: SessionProvider, core, config) -> None:
+    def initialize(self, provider: SessionProvider, player: Player, config) -> None:
         self.provider = provider
-        self.core = core
+        self.player = player
         self.ext_config = config.get("omarchy_tidal") or {}
 
     def prepare(self) -> None:
@@ -540,11 +541,7 @@ class FormatHandler(BaseHandler):
         if session is None:
             return
 
-        def current_uri():
-            track = self.core.playback.get_current_track().get()
-            return track.uri if track else None
-
-        uri = await self.run(current_uri)
+        uri = await self.run(self.player.current_track_uri)
         tid = track_id(uri or "")
         if tid is None:
             self.write_json({"uri": uri, "codec": None, "bit_depth": None,
@@ -1107,7 +1104,7 @@ class EntityHandler(BaseHandler):
 def factory(config, core):
     """Build the request rules Mopidy mounts under /omarchy-tidal/."""
     provider = SessionProvider(config)
-    kwargs = {"provider": provider, "core": core, "config": config}
+    kwargs = {"provider": provider, "player": MopidyPlayer(core), "config": config}
     return [
         (r"/health", HealthHandler, kwargs),
         (r"/auth/status", AuthStatusHandler, kwargs),

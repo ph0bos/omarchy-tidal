@@ -32,9 +32,10 @@ jobs:
         with:
           python-version: "3.12"
       - name: Install tooling
-        # tidalapi is imported by session.py; mopidy is deliberately not
-        # installed, since the modules under test do not need it.
-        run: python -m pip install --upgrade pip ruff pytest requests tidalapi
+        # tidalapi is imported by session.py and tornado by http.py; mopidy is
+        # deliberately not installed, since the modules under test do not need
+        # it -- see tests/_backend.py for how http.py is loaded without it.
+        run: python -m pip install --upgrade pip ruff pytest requests tidalapi tornado
       - name: Lint
         run: ruff check backend scripts tests
       - name: Test
