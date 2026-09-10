@@ -196,7 +196,7 @@ Views stay loaded once visited and the capture is held open for a grace period.
 ## Checks
 
 ```bash
-python3 -m pytest tests -q          # 63
+python3 -m pytest tests -q          # 82
 node --test tests/js.test.mjs       # 54
 python3 scripts/validate-manifest.py .
 python3 scripts/check-textformat.py .

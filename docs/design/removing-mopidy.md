@@ -81,12 +81,17 @@ monkeypatch at runtime.
 second `lookup()` for artist and album, and artwork needs a third call to
 `/art`. Three round trips to draw one list.
 
-**Untested code.** `http.py` is the largest file in the backend and has no test
-file, because importing it needs Mopidy installed. `tests/_backend.py:3` says so
-outright: mopidy "is not something to install on a CI runner just to test string
-parsing". CI installs `ruff pytest requests tidalapi` and nothing else. The
-queue behaviour -- tlid semantics, move, consume -- is likewise untestable,
-because it lives in a process we do not own.
+**Untested code.** *(Corrected in Stage 1 -- see below. The finding stands; the
+stated cause was wrong.)* `http.py` is the largest file in the backend and had
+no test file. This document originally blamed Mopidy for that, which was lazy:
+`http.py` imports no mopidy at all. What actually blocked it was that its
+relative imports (`from . import expand`, and five more) need a parent package,
+and importing the real package runs an `__init__.py` that does
+`from mopidy import config, ext` -- plus tornado not being installed on the
+runner. Both are fixable without touching Mopidy, and Stage 1 fixed them.
+
+The queue behaviour -- tlid semantics, move, consume -- is genuinely untestable
+until we own it, because it lives in a process we do not.
 
 **A wheel build for a plugin directory.** `cmd_backend` requires `python-build`
 and `python-installer`, builds a wheel and installs it into user site-packages,
@@ -525,10 +530,17 @@ starting from. Per CLAUDE.md, anything under 8 MB is noise and does not count as
 a result. Without these numbers the memory and hardening claims in this document
 are assumptions, and should be treated as such until they are numbers.
 
-**Stage 1 -- Decouple the companion.** Put a `Player` protocol in front of
-`http.py:544`, with a Mopidy-backed implementation. One touchpoint, no
-user-visible change -- and `http.py` becomes importable, so 1,130 lines get
-tests for the first time.
+**Stage 1 -- Decouple the companion.** *(Done.)* Put a `Player` protocol in
+front of `http.py:544`, with a Mopidy-backed implementation, so no handler holds
+a Mopidy core. That is the seam the daemon plugs into.
+
+Testability turned out to be a separate problem with a separate fix, and worth
+recording because this document got it wrong first: `_backend.load_pkg()` gives
+the module a synthetic parent package rooted at the backend directory, so its
+relative imports resolve while `__init__.py` -- and therefore mopidy -- is never
+executed, and CI now installs tornado. The result is 19 tests over the routing
+table, the cross-origin guard, the artwork host allowlist and the player seam,
+each of the two guards checked by removing it and watching the tests go red.
 
 **Stage 2 -- Take the catalogue path.** Add `/browse`, `/search` and `/mixes` to
 the companion, returning complete entries. Switch `PlayerView` off
