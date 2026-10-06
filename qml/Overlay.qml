@@ -6,6 +6,7 @@ import qs.Commons
 import qs.Ui
 import "components"
 import "views"
+import "lib/Design.js" as Design
 
 // The plugin's single summoned surface.
 //
@@ -441,7 +442,7 @@ Item {
           // like one.
           opacity: root.currentView === "search" ? 1 : 0
           visible: opacity > 0.01
-          Behavior on opacity { NumberAnimation { duration: 170; easing.type: Easing.OutCubic } }
+          Behavior on opacity { NumberAnimation { duration: Design.base; easing.type: Easing.OutCubic } }
 
           sourceComponent: PlayerView {
             svc: root.svc
@@ -467,7 +468,7 @@ Item {
           active: root.nowPlayingLoaded || root.currentView === "nowPlaying"
           opacity: root.currentView === "nowPlaying" ? 1 : 0
           visible: opacity > 0.01
-          Behavior on opacity { NumberAnimation { duration: 170; easing.type: Easing.OutCubic } }
+          Behavior on opacity { NumberAnimation { duration: Design.base; easing.type: Easing.OutCubic } }
 
           sourceComponent: NowPlayingView {
             svc: root.svc

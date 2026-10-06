@@ -86,7 +86,7 @@ Item {
         radius: Style.space(3)
         color: root.scrim
         opacity: artHover.containsMouse ? 1 : 0
-        Behavior on opacity { NumberAnimation { duration: 120 } }
+        Behavior on opacity { NumberAnimation { duration: Design.fast } }
       }
 
       Text {
@@ -97,7 +97,7 @@ Item {
         opacity: artHover.containsMouse ? 0.95 : 0
         font.family: root.fontFamily
         font.pixelSize: Style.font.bodySmall
-        Behavior on opacity { NumberAnimation { duration: 120 } }
+        Behavior on opacity { NumberAnimation { duration: Design.fast } }
       }
 
       MouseArea {
@@ -124,7 +124,7 @@ Item {
         font.family: root.fontFamily
         font.pixelSize: Style.font.body
 
-        Behavior on color { ColorAnimation { duration: 110 } }
+        Behavior on color { ColorAnimation { duration: Design.fast } }
 
         MouseArea {
           id: titleLink
@@ -147,7 +147,7 @@ Item {
         font.family: root.fontFamily
         font.pixelSize: Style.font.caption
 
-        Behavior on color { ColorAnimation { duration: 110 } }
+        Behavior on color { ColorAnimation { duration: Design.fast } }
 
         MouseArea {
           id: artistLink

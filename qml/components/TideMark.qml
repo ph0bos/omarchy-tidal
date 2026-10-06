@@ -1,4 +1,5 @@
 import QtQuick
+import "../lib/Design.js" as Design
 
 // The "Crest" mark, drawn natively rather than loaded from assets/icon.svg.
 //
@@ -57,7 +58,7 @@ Item {
       y: (root.tops[bar.index] - root.originY) * root.u
       color: root.color
 
-      Behavior on color { ColorAnimation { duration: 140 } }
+      Behavior on color { ColorAnimation { duration: Design.fast } }
     }
   }
 }

@@ -1,5 +1,6 @@
 import QtQuick
 import qs.Commons
+import "../lib/Design.js" as Design
 
 // A small icon button for the overlay header. Quiet until hovered, accented
 // while its view is the active one -- the same restraint the bar's own chips
@@ -29,7 +30,7 @@ Item {
       ? Qt.rgba(Color.accent.r, Color.accent.g, Color.accent.b, 0.16)
       : (hover.containsMouse && root.interactive ? Color.menu.selectedBackground : "transparent")
 
-    Behavior on color { ColorAnimation { duration: 110 } }
+    Behavior on color { ColorAnimation { duration: Design.fast } }
   }
 
   Text {

@@ -24,27 +24,45 @@ ALIASES = {
     "Tidal": "TidalApi.js",
 }
 
-BLOCK_COMMENT = re.compile(r"/\*.*?\*/", re.S)
-LINE_COMMENT = re.compile(r"//[^\n]*")
-STRING = re.compile(r"\"(?:[^\"\\]|\\.)*\"|'(?:[^'\\]|\\.)*'")
+# One pass, left to right, taking whichever of these starts first. Three
+# separate passes cannot be ordered correctly: each kind can contain the opening
+# of another, and whichever is stripped first eats into the ones after it.
+#
+#   - an apostrophe in a comment -- "the view's own handler" -- opened a
+#     "string" that ran to the next apostrophe anywhere in the file, and blanked
+#     every use of a namespace between the two;
+#   - a `/*` in a line comment -- "see lib/*.js" -- opened a block comment that
+#     ran to the next `*/` in the file;
+#   - a `//` in a string -- "https://..." -- cut the line off before its closing
+#     quote.
+#
+# A quoted string ends on the line it began.
+TOKEN = re.compile(
+    r"""
+      //[^\n]*                      # line comment
+    | /\*.*?\*/                     # block comment
+    | "(?:[^"\\\n]|\\.)*"           # double-quoted string
+    | '(?:[^'\\\n]|\\.)*'           # single-quoted string
+    | `(?:[^`\\]|\\.)*`             # template literal, which may span lines
+    """,
+    re.S | re.X,
+)
 
 
 def code_only(text: str) -> str:
     """The file with comments and string literals blanked out.
 
     A namespace named in a comment is not a use, and neither is one inside a
-    string -- both produced false positives the first time this ran.
-
-    Strings go first, and that order is the whole correctness of this
-    function: strip line comments first and a URL in a QML string ("https://
-    ...") loses everything from its `//` to the end of the line, including its
-    closing quote. The next quote in the file then pairs with the wrong one
-    and blanks whole functions -- which is exactly how the first version of
-    this check passed a file it should have failed.
+    string -- both produced false positives the first time this ran. Line
+    breaks are kept, so what is left still has the line numbers it had.
     """
-    text = STRING.sub('""', text)
-    text = BLOCK_COMMENT.sub(lambda m: "\n" * m.group(0).count("\n"), text)
-    return LINE_COMMENT.sub("", text)
+
+    def blank(match: re.Match) -> str:
+        token = match.group(0)
+        lines = "\n" * token.count("\n")
+        return lines if token.startswith("/") else '""' + lines
+
+    return TOKEN.sub(blank, text)
 
 
 def main(root: str = ".") -> int:
