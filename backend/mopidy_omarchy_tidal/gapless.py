@@ -44,10 +44,26 @@ def _prune(cache_dir: Path) -> None:
         pass
 
 
+def enabled(config) -> bool:
+    """Whether `[omarchy_tidal] gapless` is on. On unless it says otherwise.
+
+    Read each time a track is resolved rather than once at startup: an
+    extension's `setup()` is not handed the config, and the option was in the
+    schema and the defaults for a long time without anything reading it.
+    """
+    try:
+        section = (config or {}).get("omarchy_tidal") or {}
+        value = section.get("gapless")
+    except Exception:
+        return True
+    return True if value is None else bool(value)
+
+
 def install() -> bool:
     """Rebind as_stream so each DASH manifest gets its own file.
 
-    Returns True when gapless is active.
+    Returns True when the patch is in place. Whether it is then used is
+    `enabled()`'s question, asked per track.
     """
     try:
         from mopidy_tidal import Extension as TidalExtension
@@ -67,6 +83,22 @@ def install() -> bool:
         return False
 
     def as_stream(track):
+        try:
+            wanted = enabled(context.get_config())
+        except Exception:
+            wanted = True
+        if not wanted:
+            # Said once, and as a warning: Mopidy shows nothing quieter by
+            # default, and this is the only sign that the option was honoured.
+            if not getattr(as_stream, "said_off", False):
+                as_stream.said_off = True
+                logger.warning(
+                    "Omarchy TIDAL: [omarchy_tidal] gapless = false, so streams are "
+                    "resolved by mopidy-tidal unchanged; expect a stall where one "
+                    "hi-res track meets the next")
+            # Outside the try below: with gapless off, what mopidy-tidal does
+            # and what it raises are its own, once, and not ours to report.
+            return original(track)
         try:
             stream = track.get_stream()
             if stream.manifest_mime_type != ManifestMimeType.MPD:
@@ -99,5 +131,9 @@ def install() -> bool:
 
     tidal_playback.as_stream = as_stream
     setattr(tidal_playback, _PATCHED_FLAG, True)
-    logger.info("Omarchy TIDAL: per-track DASH manifests enabled (gapless hi-res)")
+    # "Ready", not "enabled": whether it is used is the config's to say, and
+    # that is read per track. Someone who has turned gapless off should not be
+    # told at startup that it is on.
+    logger.info("Omarchy TIDAL: per-track DASH manifests ready (gapless hi-res, "
+                "unless [omarchy_tidal] gapless = false)")
     return True

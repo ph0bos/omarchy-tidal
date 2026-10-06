@@ -12,10 +12,16 @@ authenticated tidalapi session instead of asking the user to log in twice.
 from __future__ import annotations
 
 import pathlib
+from importlib import metadata
 
 from mopidy import config, ext
 
-__version__ = "0.1.0"
+# The companion's version is written in backend/pyproject.toml and read from
+# there. This used to be a second copy, and it said 0.1.0 from 0.2 to 0.8.
+try:
+    __version__ = metadata.version("mopidy-omarchy-tidal")
+except metadata.PackageNotFoundError:  # run from a checkout, not installed
+    __version__ = "0.0.0"
 
 
 class Extension(ext.Extension):

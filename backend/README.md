@@ -46,6 +46,12 @@ patch is applied in-process, the way `gapless.py` is, and it fixes this for
 every Mopidy client rather than only for the plugin. It also adds the
 `_lookup_mix` the library provider never had.
 
+`gapless.py` gives each hi-res track a DASH manifest file of its own, where
+mopidy-tidal writes them all to one. It is on by default. `gapless = false`
+under `[omarchy_tidal]` in `mopidy.conf` hands stream resolution back to
+mopidy-tidal untouched, stall at each track boundary included: it is there to
+rule the patch out when playback misbehaves, not as a setting to run with.
+
 Requests carrying a cross-origin `Origin` header are refused. Mopidy binds to
 127.0.0.1, but any page in the user's browser can reach localhost, and these
 endpoints expose library data and can drive playback.
