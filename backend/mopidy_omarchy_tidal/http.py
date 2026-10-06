@@ -96,6 +96,7 @@ class BaseHandler(tornado.web.RequestHandler):
             return payload
         payload = await tornado.ioloop.IOLoop.current().run_in_executor(
             _ART_EXECUTOR, images_mod.describe, session, uri, size)
+        # An answer is kept; nothing is kept only briefly. See images.MISS_TTL.
         images_mod.remember(key, payload)
         return payload
 
@@ -848,7 +849,7 @@ class LibraryHandler(BaseHandler):
         except Exception as exc:
             logger.warning("omarchy-tidal: %s favourites failed: %s", section, exc)
             self.set_status(502)
-            self.write_json({"error": str(exc)})
+            self.write_json({"error": text_mod.reason(exc)})
             return
 
         items = [payload for payload in (_item_payload(item) for item in found) if payload]
@@ -894,7 +895,7 @@ class PlaylistsHandler(BaseHandler):
         except Exception as exc:
             logger.warning("omarchy-tidal: could not list playlists: %s", exc)
             self.set_status(502)
-            self.write_json({"error": str(exc)})
+            self.write_json({"error": text_mod.reason(exc)})
             return
 
         items = []
@@ -962,7 +963,7 @@ class PlaylistEditHandler(BaseHandler):
         except Exception as exc:
             logger.warning("omarchy-tidal: playlist page failed: %s", exc)
             self.set_status(502)
-            self.write_json({"error": str(exc)})
+            self.write_json({"error": text_mod.reason(exc)})
 
     async def post(self) -> None:
         body = self.body_json()
@@ -987,7 +988,7 @@ class PlaylistEditHandler(BaseHandler):
             except Exception as exc:
                 logger.warning("omarchy-tidal: could not create playlist: %s", exc)
                 self.set_status(502)
-                self.write_json({"error": str(exc)})
+                self.write_json({"error": text_mod.reason(exc)})
             return
 
         parsed = images_mod.split(str(body.get("playlist") or ""))
@@ -1030,7 +1031,7 @@ class PlaylistEditHandler(BaseHandler):
         except Exception as exc:
             logger.warning("omarchy-tidal: playlist %s failed: %s", action, exc)
             self.set_status(502)
-            self.write_json({"error": str(exc)})
+            self.write_json({"error": text_mod.reason(exc)})
 
 
 class PlaylistUrisHandler(BaseHandler):
@@ -1065,7 +1066,7 @@ class PlaylistUrisHandler(BaseHandler):
         except Exception as exc:
             logger.warning("omarchy-tidal: playlist uris failed: %s", exc)
             self.set_status(502)
-            self.write_json({"error": str(exc)})
+            self.write_json({"error": text_mod.reason(exc)})
             return
 
         self.write_json({"uri": uri, "uris": uris})

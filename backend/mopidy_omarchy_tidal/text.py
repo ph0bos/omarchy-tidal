@@ -63,3 +63,28 @@ def clean(raw: str | None) -> tuple[str, list[dict]]:
         unique.append(link)
 
     return text.strip(), unique
+
+
+_UNREACHABLE = ("ConnectionError", "Timeout", "ReadTimeout", "ConnectTimeout")
+
+
+def reason(exc: BaseException) -> str:
+    """Why a call to Tidal failed, in words safe to put on screen.
+
+    Never `str(exc)`: a requests error carries the url it was for, and Tidal's
+    urls carry the session id. The views put their own "Could not ...:" in
+    front of this, so it says why, not what.
+    """
+    name = type(exc).__name__
+    if name == "TooManyRequests":
+        return "TIDAL is limiting requests; try again shortly"
+    if name == "ObjectNotFound":
+        return "TIDAL has nothing by that id"
+    if name == "AuthenticationError":
+        return "TIDAL did not accept the session"
+    status = getattr(getattr(exc, "response", None), "status_code", None)
+    if isinstance(status, int):
+        return f"TIDAL answered {status}"
+    if isinstance(exc, (ConnectionError, TimeoutError)) or name in _UNREACHABLE:
+        return "TIDAL could not be reached"
+    return "the request to TIDAL failed"

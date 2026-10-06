@@ -24,12 +24,15 @@ function _request(method, path, body, onOk, onErr) {
 
   xhr.onreadystatechange = function() {
     if (xhr.readyState !== XMLHttpRequest.DONE || settled) return
-    if (xhr.status === 404 || xhr.status === 0) {
-      fail("companion extension unavailable")
-      return
-    }
     if (xhr.status < 200 || xhr.status >= 300) {
-      fail("HTTP " + xhr.status)
+      // The companion explains a refusal in its body -- "a playlist needs a
+      // name" -- and that is the thing to show.
+      // "HTTP 400" told nobody what they had done. A 404 with no such body is
+      // Mopidy answering for an extension that is not there.
+      var said = _errorOf(xhr.responseText)
+      if (said !== "") fail(said)
+      else if (xhr.status === 404 || xhr.status === 0) fail("companion extension unavailable")
+      else fail("HTTP " + xhr.status)
       return
     }
     var payload
@@ -51,6 +54,15 @@ function _request(method, path, body, onOk, onErr) {
     xhr.send(body ? JSON.stringify(body) : null)
   } catch (e) {
     fail(String(e))
+  }
+}
+
+function _errorOf(text) {
+  try {
+    var body = JSON.parse(text)
+    return body && typeof body.error === "string" ? body.error : ""
+  } catch (e) {
+    return ""
   }
 }
 

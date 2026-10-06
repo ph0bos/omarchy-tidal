@@ -42,3 +42,33 @@ def test_multiline_label_inside_tag():
     text, links = clean('[wimpLink artistId="2"]Two\nWords[/wimpLink]')
     assert "Two\nWords" in text
     assert links[0]["label"] == "Two\nWords"
+
+
+
+reason = load("text").reason
+
+
+def test_a_failure_is_explained_without_the_url_it_was_for():
+    class Response:
+        status_code = 500
+
+    class HTTPError(Exception):
+        response = Response()
+
+    url = "https://api.tidal.com/v1/playlists?sessionId=secret"
+    said = reason(HTTPError(f"500 Server Error for url: {url}"))
+    assert said == "TIDAL answered 500"
+    assert "secret" not in said
+
+
+def test_the_reasons_tidalapi_names_are_kept():
+    class TooManyRequests(Exception):
+        pass
+
+    class ObjectNotFound(Exception):
+        pass
+
+    assert "limiting" in reason(TooManyRequests("Too many requests"))
+    assert "nothing by that id" in reason(ObjectNotFound("Object not found"))
+    assert reason(ConnectionError("refused")) == "TIDAL could not be reached"
+    assert reason(ValueError("anything else")) == "the request to TIDAL failed"

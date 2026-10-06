@@ -107,10 +107,31 @@ def test_resolve_is_just_the_image_from_describe():
         "https://resources.tidal.com/artist/320.jpg"
 
 
-def test_cache_remembers_a_miss_as_well_as_a_hit():
+def test_cache_keeps_an_answer_and_only_briefly_keeps_a_miss(monkeypatch):
+    """describe() answers None for a failed request as well as for nothing
+    there, so a miss must lapse: kept for good, one dropped connection was a
+    blank sleeve until Mopidy restarted."""
+    now = [1000.0]
+    monkeypatch.setattr(images, "_clock", lambda: now[0])
+    images.forget_all()
+
     assert images.cached("k") == (False, None)
     images.remember("k", None)
+    assert images.cached("k") == (True, None), "not asked again straight away"
+    now[0] += images.MISS_TTL - 1
     assert images.cached("k") == (True, None)
+    now[0] += 2
+    assert images.cached("k") == (False, None), "asked again once it has lapsed"
+
+    images.remember("k", {"name": "x"})
+    now[0] += 10 * images.MISS_TTL
+    assert images.cached("k") == (True, {"name": "x"}), "an answer does not lapse"
+
+
+def test_an_answer_replaces_a_miss(monkeypatch):
+    monkeypatch.setattr(images, "_clock", lambda: 5.0)
+    images.forget_all()
+    images.remember("k", None)
     images.remember("k", {"name": "x"})
     assert images.cached("k") == (True, {"name": "x"})
 

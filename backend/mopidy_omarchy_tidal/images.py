@@ -19,6 +19,7 @@ from __future__ import annotations
 
 import hashlib
 import os
+import time
 from pathlib import Path
 
 # One Tidal object answers two questions -- what does this look like, and what
@@ -26,7 +27,7 @@ from pathlib import Path
 # not change, and resolving them is a real API round trip either way. Cleared
 # wholesale when full rather than evicted one at a time: this is a convenience
 # cache, not a working set worth ranking.
-_CACHE: dict[str, dict | None] = {}
+_CACHE: dict[str, dict] = {}
 _CACHE_MAX = 4096
 
 
@@ -34,14 +35,36 @@ def cache_size() -> int:
     return len(_CACHE)
 
 
+# A lookup that answered nothing is remembered too, but not for long:
+# `describe` returns None for a request that failed as well as for an entity
+# that is not there, and cannot tell the two apart. Kept for good, one dropped
+# connection was a sleeve that stayed blank until Mopidy was restarted. Not
+# kept at all, a record that has left the catalogue cost a round trip every
+# time its row scrolled back into view.
+MISS_TTL = 60.0
+_MISSES: dict[str, float] = {}
+_clock = time.monotonic
+
+
 def cached(key: str) -> tuple[bool, dict | None]:
-    """(hit, payload). A cached None means "asked, and there is nothing there"."""
+    """(hit, payload). A hit with None means "asked lately, and nothing came back"."""
     if key in _CACHE:
         return True, _CACHE[key]
+    missed = _MISSES.get(key)
+    if missed is not None:
+        if _clock() - missed < MISS_TTL:
+            return True, None
+        del _MISSES[key]
     return False, None
 
 
 def remember(key: str, payload: dict | None) -> None:
+    if payload is None:
+        if len(_MISSES) >= _CACHE_MAX:
+            _MISSES.clear()
+        _MISSES[key] = _clock()
+        return
+    _MISSES.pop(key, None)
     if len(_CACHE) >= _CACHE_MAX:
         _CACHE.clear()
     _CACHE[key] = payload
@@ -49,6 +72,7 @@ def remember(key: str, payload: dict | None) -> None:
 
 def forget_all() -> None:
     _CACHE.clear()
+    _MISSES.clear()
 
 
 def split(uri: str) -> tuple[str, str] | None:

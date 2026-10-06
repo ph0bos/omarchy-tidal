@@ -11,8 +11,8 @@ import { fileURLToPath } from "node:url";
 
 const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
 
-function load(relative) {
-  const context = { console };
+function load(relative, extra = {}) {
+  const context = { console, ...extra };
   vm.createContext(context);
   vm.runInContext(readFileSync(path.join(root, relative), "utf8"), context);
   return context;
@@ -21,6 +21,42 @@ function load(relative) {
 const Lrc = load("qml/lib/Lrc.js");
 const Library = load("qml/lib/Library.js");
 const Design = load("qml/lib/Design.js");
+
+// ---- TidalApi.js -----------------------------------------------------------
+
+test("a refusal from the companion is reported in the companion's words", () => {
+  const answers = [];
+  class Refusing {
+    static DONE = 4;
+    open() {}
+    setRequestHeader() {}
+    send() {
+      const [status, text] = answers.shift();
+      this.status = status;
+      this.responseText = text;
+      this.readyState = Refusing.DONE;
+      this.onreadystatechange();
+    }
+  }
+  const api = load("qml/lib/TidalApi.js", { XMLHttpRequest: Refusing });
+  const said = [];
+  const ask = (status, text) => {
+    answers.push([status, text]);
+    api.playlistCreate("", () => said.push("ok"), (err) => said.push(err));
+  };
+  ask(400, JSON.stringify({ error: "a playlist needs a name" }));
+  ask(404, JSON.stringify({ error: "nothing known about tidal:album:1" }));
+  ask(404, "<html>404: Not Found</html>");
+  ask(500, "<html>boom</html>");
+  ask(0, "");
+  assert.deepEqual(said, [
+    "a playlist needs a name",
+    "nothing known about tidal:album:1",
+    "companion extension unavailable",
+    "HTTP 500",
+    "companion extension unavailable",
+  ]);
+});
 
 // ---- Lrc.js -----------------------------------------------------------------
 

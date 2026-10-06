@@ -164,29 +164,52 @@ Item {
   property bool signedIn: false
   property string lastError: ""
 
+  // Health probes in a row that failed. One failure -- a reset connection, a
+  // 5xx while Mopidy restarts -- is not the companion being uninstalled, and
+  // taking it as that puts the setup wizard over a player that is working.
+  // This is a precaution, not a fix for something seen: a probe that is merely
+  // slow is answered late rather than failed.
+  property int healthMisses: 0
+  property int pingMisses: 0
+  // A miss that has not yet been believed: ask again soon. Once it has been --
+  // the companion is marked gone, or was never there -- the probe goes back to
+  // its slow beat instead of asking every five seconds for good.
+  readonly property bool recheckSoon: (companionAvailable && healthMisses > 0)
+    || (backendState === "up" && pingMisses > 0)
+
   function probeBackend() {
     Rpc.ping(function() {
       if (!root.alive) return
+      root.pingMisses = 0
       root.backendState = "up"
       root.refreshModes()
       Tidal.health(function(info) {
         if (!root.alive) return
+        root.healthMisses = 0
         root.companionAvailable = true
         root.signedIn = !!(info && info.logged_in)
         root.probed = true
       }, function() {
         if (!root.alive) return
+        root.healthMisses = root.healthMisses + 1
+        // One failed probe from a companion that was answering is a bad
+        // moment, not an uninstall. Wait for the second before saying so.
+        if (root.companionAvailable && root.healthMisses < 2) return
         root.companionAvailable = false
         root.signedIn = false
         root.probed = true
       })
     }, function(err) {
       if (!root.alive) return
+      root.lastError = err
+      root.pingMisses = root.pingMisses + 1
+      // The same patience for Mopidy itself: one failed ping is not Mopidy
+      // going away, and MPRIS says so at once when it really has.
+      if (root.backendState === "up" && root.pingMisses < 2) return
       root.backendState = "down"
       root.companionAvailable = false
       root.signedIn = false
       root.probed = true
-      root.lastError = err
     })
   }
 
@@ -194,7 +217,9 @@ Item {
   // purely to notice mopidy starting or dying.
   Timer {
     id: probeTimer
-    interval: root.backendState === "up" ? 30000 : 5000
+    // Back soon after a miss, so a companion that really has gone is noticed
+    // in seconds rather than at the next half minute.
+    interval: root.backendState === "up" && !root.recheckSoon ? 30000 : 5000
     running: true
     repeat: true
     triggeredOnStart: true
