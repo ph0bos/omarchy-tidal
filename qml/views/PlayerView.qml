@@ -133,7 +133,7 @@ Item {
       root.loadLibraryPage(true)
       return
     }
-    root.librarySection = ""
+    root.leaveLibrary()
 
     // The shelf page owns tidal:home. Browsing it as well would spend a round
     // trip on a folder list nobody is going to see.
@@ -247,7 +247,20 @@ Item {
     }, function() { /* rows stay as-is; a name is still usable */ })
   }
 
+  // The queue and a search are not favourites lists. Neither comes through
+  // the part of openTarget() that clears the paging state, so after My Tracks
+  // it still said "tracks, and there are more": scrolling fetched the next
+  // page of favourites and appended it to the rows on screen. The page's own
+  // check is only that the uri has not changed since it was asked for, and it
+  // had not -- it was already "queue". After My Albums or My Artists it also
+  // still said "a wall of covers", and gridActive drew the queue as one.
+  function leaveLibrary() {
+    root.librarySection = ""
+    root.libraryMore = false
+  }
+
   function loadQueue() {
+    root.leaveLibrary()
     root.currentUri = "queue"
     root.currentTitle = "Queue"
     root.rows = []
@@ -286,6 +299,7 @@ Item {
     var q = String(query || "").trim()
     if (q.length === 0) return
     root.pendingQuery = q
+    root.leaveLibrary()
     root.currentUri = "search:" + q
     root.currentTitle = "Search · " + q
     root.rows = []
