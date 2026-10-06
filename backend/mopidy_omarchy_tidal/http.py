@@ -26,6 +26,7 @@ from urllib.parse import urlparse
 import tornado.httpclient
 import tornado.ioloop
 import tornado.web
+from tidalapi.types import ItemOrder, OrderDirection
 
 from . import expand as expand_mod
 from . import images as images_mod
@@ -834,6 +835,21 @@ class LibraryHandler(BaseHandler):
             offset = max(0, int(self.get_argument("offset", "0")))
         except ValueError:
             limit, offset = 100, 0
+        # Tidal answers 400 for more than fifty favourite playlists at a time.
+        # The answer says the limit it used, which is what the client steps by.
+        if section == "playlists":
+            limit = min(limit, 50)
+
+        # Title A-Z is what Tidal answers with when no order is given, and so
+        # what this endpoint answered before it took one.
+        order = self.get_argument("order", "NAME")
+        direction = self.get_argument("direction", "ASC")
+        track_orders = {"DATE": ItemOrder.Date, "ARTIST": ItemOrder.Artist,
+                        "ALBUM": ItemOrder.Album, "NAME": ItemOrder.Name}
+        if section == "tracks" and (order not in track_orders or direction not in ("ASC", "DESC")):
+            self.set_status(400)
+            self.write_json({"error": "unknown track sort"})
+            return
 
         session = self.session_or_503()
         if session is None:
@@ -841,10 +857,23 @@ class LibraryHandler(BaseHandler):
 
         def work():
             favorites = session.user.favorites
-            return list(getattr(favorites, section)(limit=limit, offset=offset) or [])
+            if section == "tracks":
+                found = list(favorites.tracks(
+                    limit=limit, offset=offset, order=track_orders[order],
+                    order_direction=OrderDirection.Ascending if direction == "ASC"
+                    else OrderDirection.Descending) or [])
+            else:
+                found = list(getattr(favorites, section)(limit=limit, offset=offset) or [])
+            # How many there are in all, counting the ones Tidal will not hand
+            # over. Best effort: without it the old rule below still applies.
+            try:
+                total = int(getattr(favorites, f"get_{section}_count")())
+            except Exception:
+                total = None
+            return found, total
 
         try:
-            found = await self.run(work)
+            found, total = await self.run(work)
         except Exception as exc:
             logger.warning("omarchy-tidal: %s favourites failed: %s", section, exc)
             self.set_status(502)
@@ -852,15 +881,26 @@ class LibraryHandler(BaseHandler):
             return
 
         items = [payload for payload in (_item_payload(item) for item in found) if payload]
-        self.write_json({
+        answer = {
             "section": section,
             "offset": offset,
             "limit": limit,
             "items": items,
-            # Tidal does not report a total, so "there may be more" is the
-            # honest answer: a short page is the end of the list.
-            "more": len(found) >= limit,
-        })
+            # A page is a range of positions, not a number of rows: a
+            # favourite that is no longer available keeps its position and is
+            # left out of the page. Taking a short page for the end of the
+            # list stopped a library of 195 tracks at 97. The total counts
+            # those positions, so it is what says whether there is more.
+            "more": offset + limit < total if total is not None else len(found) >= limit,
+        }
+        if total is not None:
+            answer["total"] = total
+        if section == "tracks":
+            # Said back, so the UI can tell a companion that sorted from an
+            # older one that ignored the argument and answered in title order.
+            answer["order"] = order
+            answer["direction"] = direction
+        self.write_json(answer)
 
 
 def _track_ids(uris) -> list[str]:

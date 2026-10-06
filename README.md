@@ -369,7 +369,8 @@ play/pause · `Esc` close.
 In the queue, `Enter` jumps to that track rather than starting a new queue from
 it, `Ctrl`+`↑`/`↓` carries a row up or down the running order, `Delete` takes it
 out, and **Clear** in the header empties the lot. `P` on any track asks which
-playlist to file it in, `M` opens the quick menu, and **`?` shows the whole map**
+playlist to file it in, `S` steps My Tracks through its sort orders, `M` opens
+the quick menu, and **`?` shows the whole map**
 — grouped by where each key works, because the arrows mean different things in a
 list, on the Home grid and in the queue.
 

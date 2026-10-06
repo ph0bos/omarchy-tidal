@@ -170,9 +170,11 @@ function playlistCreate(name, onOk, onErr) {
 }
 
 // A page of someone's favourites, with the metadata already attached.
-// -> { section, offset, limit, items: [...], more }
-function library(section, limit, offset, onOk, onErr) {
-  _request("GET", "/library" + _q({ section: section, limit: limit, offset: offset }),
+// -> { section, offset, limit, items: [...], more, total? } and, for tracks,
+// { order, direction }. `limit` is the one used, which may be less than asked.
+function library(section, limit, offset, onOk, onErr, order, direction) {
+  _request("GET", "/library" + _q({ section: section, limit: limit, offset: offset,
+                                      order: order || "NAME", direction: direction || "ASC" }),
            null, onOk, onErr)
 }
 

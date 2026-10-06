@@ -11,8 +11,8 @@ import { fileURLToPath } from "node:url";
 
 const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
 
-function load(relative) {
-  const context = { console };
+function load(relative, extra = {}) {
+  const context = { console, ...extra };
   vm.createContext(context);
   vm.runInContext(readFileSync(path.join(root, relative), "utf8"), context);
   return context;
@@ -497,4 +497,18 @@ test("gridCardWidth refuses to return a width nothing can be drawn at", () => {
   assert.equal(Design.gridCardWidth(0, 12, 4), 1);
   assert.equal(Design.gridCardWidth(830, 12, 0), 0);
   assert.equal(Design.gridCardWidth(10, 12, 4), 1);
+});
+
+// The companion sorts the whole library before paging it.
+test("library requests carry sort and paging, with date-descending defaults", () => {
+  const urls = [];
+  class FakeXHR {
+    open(method, url) { urls.push(url); }
+    send() {}
+  }
+  const api = load("qml/lib/TidalApi.js", { XMLHttpRequest: FakeXHR });
+  api.library("tracks", 100, 200, () => {}, () => {}, "ARTIST", "ASC");
+  assert.equal(urls.at(-1), "http://127.0.0.1:6680/omarchy-tidal/library?section=tracks&limit=100&offset=200&order=ARTIST&direction=ASC");
+  api.library("tracks", 100, 0, () => {}, () => {});
+  assert.match(urls.at(-1), /order=NAME&direction=ASC$/);
 });

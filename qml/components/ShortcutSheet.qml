@@ -40,6 +40,7 @@ Item {
         { keys: "←  Backspace", what: "Back" },
         { keys: "Tab", what: "Sidebar and back" },
         { keys: "P", what: "Add to a playlist" },
+        { keys: "S", what: "Sort My Tracks" },
         { keys: "M", what: "Quick menu" },
         { keys: "?", what: "This list" },
         { keys: "Space", what: "Play or pause" },

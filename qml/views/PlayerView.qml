@@ -66,6 +66,27 @@ Item {
   property bool libraryMore: false
   property bool libraryLoading: false
   property bool libraryFallback: false
+  property int trackSortIndex: 0
+  // Title A-Z first: it is the order Tidal answers in when none is asked for,
+  // so it is what My Tracks showed before there was a choice.
+  readonly property var trackSortOptions: [
+    { label: "Title A–Z", order: "NAME", direction: "ASC" },
+    { label: "Date added ↓", order: "DATE", direction: "DESC" },
+    { label: "Date added ↑", order: "DATE", direction: "ASC" },
+    { label: "Artist A–Z", order: "ARTIST", direction: "ASC" },
+    { label: "Artist Z–A", order: "ARTIST", direction: "DESC" },
+    { label: "Album A–Z", order: "ALBUM", direction: "ASC" }
+  ]
+  property int libraryRequestSerial: 0
+  // True once a companion has answered for tracks and named the order it
+  // used. Until then there is no control: an older companion would show one
+  // over a list it cannot sort.
+  property bool trackSortSupported: false
+  // The sort that is on screen, to go back to if the one asked for cannot be
+  // fetched. Set by the first press and kept through any that follow it.
+  property int trackSortRevert: -1
+  readonly property bool trackSortAvailable: root.currentUri === "tidal:my_tracks"
+    && root.detailUri === "" && root.librarySection === "tracks" && root.trackSortSupported
 
   readonly property int libraryPageSize: 100
   readonly property bool homeActive: root.currentUri === "tidal:home"
@@ -113,6 +134,13 @@ Item {
   // ---- loading ----
 
   function openTarget(uri, title) {
+    // Leaving with a sort pressed and not yet fetched: the label goes back to
+    // the order the list was actually in.
+    trackSortDebounce.stop()
+    if (root.trackSortRevert >= 0) root.trackSortIndex = root.trackSortRevert
+    root.trackSortRevert = -1
+    root.libraryRequestSerial++
+    root.libraryLoading = false
     root.detailUri = ""
     if (uri !== "tidal:home") homePage.clearSelection()
     if (uri === "queue") { loadQueue(); return }
@@ -184,29 +212,85 @@ Item {
     var forUri = root.currentUri
     var section = root.librarySection
     var offset = first ? 0 : root.libraryOffset
+    var serial = root.libraryRequestSerial
+    var sort = root.trackSortOptions[root.trackSortIndex]
 
     Tidal.library(section, root.libraryPageSize, offset, function(payload) {
-      if (!root.alive || root.currentUri !== forUri) return
+      if (!root.alive || root.currentUri !== forUri || serial !== root.libraryRequestSerial) return
       root.libraryLoading = false
       root.loading = false
+
+      // A companion older than the sort ignores the argument and answers in
+      // title order whatever was asked. It also does not say what order it
+      // used, which is how to tell: the control goes rather than cycle a label
+      // over a list that never changes.
+      if (section === "tracks") {
+        root.trackSortSupported = !!(payload && payload.order)
+        if (!root.trackSortSupported) root.trackSortIndex = 0
+      }
+      // Unless a press is still waiting to be sent: then the order on screen
+      // is still the one to come back to.
+      if (!trackSortDebounce.running) root.trackSortRevert = -1
 
       var items = (payload && payload.items) || []
       var rows = Library.fromEntries(items)
       root.rows = first ? rows : root.rows.concat(rows)
-      root.libraryOffset = offset + items.length
-      root.libraryMore = !!(payload && payload.more) && items.length > 0
-      if (root.rows.length === 0) root.errorText = "Nothing here."
+      // Stepped by position, not by rows: a favourite Tidal no longer offers
+      // keeps its place in the list and is missing from the page, so a page
+      // of a hundred positions can hold ninety-seven rows. Counting rows asked
+      // for the same three again. A companion that reports the total knows
+      // where the list ends; an older one ends it at the first short page.
+      var counted = !!payload && typeof payload.total === "number"
+      var step = payload && payload.limit > 0 ? payload.limit : items.length
+      root.libraryOffset = offset + (counted ? step : items.length)
+      root.libraryMore = !!(payload && payload.more) && (counted || items.length > 0)
+      if (root.rows.length === 0 && !root.libraryMore) root.errorText = "Nothing here."
     }, function(err) {
-      if (!root.alive || root.currentUri !== forUri) return
+      if (!root.alive || root.currentUri !== forUri || serial !== root.libraryRequestSerial) return
       root.libraryLoading = false
       root.loading = false
       if (!first) return
+      // A sort that could not be fetched is not a companion that cannot
+      // answer: the list was on screen a moment ago. Go back to the order it
+      // was in and say so, rather than dropping every favourites list to
+      // browse refs for the rest of the session.
+      if (root.trackSortRevert >= 0) {
+        root.trackSortIndex = root.trackSortRevert
+        root.trackSortRevert = -1
+        if (root.svc) root.svc.osd("Could not sort: " + err, "media")
+        root.loadLibraryPage(true)
+        return
+      }
       // One fall back to browsing, for the rest of the session: a companion
       // that cannot answer for albums will not answer for artists either.
       root.libraryFallback = true
       root.librarySection = ""
       root.openTarget(forUri, root.currentTitle)
-    })
+    }, sort.order, sort.direction)
+  }
+
+  // The label moves at once; the list follows when the presses stop. Reaching
+  // the fifth order is five presses, and each was a round trip to Tidal that
+  // the next one threw away.
+  function advanceTrackSort() {
+    if (!root.trackSortAvailable) return
+    if (root.trackSortRevert < 0) root.trackSortRevert = root.trackSortIndex
+    root.trackSortIndex = (root.trackSortIndex + 1) % root.trackSortOptions.length
+    trackSortDebounce.restart()
+  }
+
+  function applyTrackSort() {
+    if (!root.trackSortAvailable) return
+    if (root.trackSortIndex === root.trackSortRevert) { root.trackSortRevert = -1; return }
+    root.errorText = ""
+    root.libraryRequestSerial++
+    root.libraryLoading = false
+    root.libraryOffset = 0
+    root.libraryMore = false
+    root.rows = []
+    root.selectedIndex = 0
+    listView.positionViewAtBeginning()
+    root.loadLibraryPage(true)
   }
 
   // A favourites list opened before the companion answered is a browse list of
@@ -584,7 +668,7 @@ Item {
       Text {
         textFormat: Text.PlainText
         anchors.left: parent.left
-        anchors.right: clearQueue.visible ? clearQueue.left : searchField.left
+        anchors.right: clearQueue.visible ? clearQueue.left : trackSort.visible ? trackSort.left : searchField.left
         anchors.rightMargin: Style.space(16)
         anchors.verticalCenter: parent.verticalCenter
         // A detail page carries its own name at display size a few pixels
@@ -600,6 +684,30 @@ Item {
         // still true while the page underneath it is arriving.
         opacity: root.loading ? 0.4 : 1
         Behavior on opacity { NumberAnimation { duration: Design.base } }
+      }
+
+      Text {
+        id: trackSort
+        textFormat: Text.PlainText
+        anchors.right: searchField.left
+        anchors.rightMargin: Style.space(16)
+        anchors.verticalCenter: parent.verticalCenter
+        visible: root.trackSortAvailable
+        text: "Sort: " + root.trackSortOptions[root.trackSortIndex].label
+        color: trackSortHover.containsMouse ? root.foreground : Color.muted
+        font.family: root.fontFamily
+        font.pixelSize: Style.font.bodySmall
+
+        Behavior on color { ColorAnimation { duration: Design.fast } }
+
+        MouseArea {
+          id: trackSortHover
+          anchors.fill: parent
+          anchors.margins: -Style.space(6)
+          hoverEnabled: true
+          cursorShape: Qt.PointingHandCursor
+          onClicked: root.advanceTrackSort()
+        }
       }
 
       Text {
@@ -655,6 +763,12 @@ Item {
         // the same thing twice. The delay is long enough that "deftones" is
         // one request rather than eight, and short enough to read as live.
         onTextChanged: searchDebounce.restart()
+      }
+
+      Timer {
+        id: trackSortDebounce
+        interval: 320
+        onTriggered: root.applyTrackSort()
       }
 
       Timer {
@@ -1005,6 +1119,12 @@ Item {
     }
     if (event.key === Qt.Key_Space) {
       if (root.svc) root.svc.playPause()
+      event.accepted = true; return
+    }
+
+    // S steps My Tracks through its sort orders, as a click on the header does.
+    if (event.key === Qt.Key_S && root.trackSortAvailable && !root.sidebarFocused) {
+      root.advanceTrackSort()
       event.accepted = true; return
     }
 
