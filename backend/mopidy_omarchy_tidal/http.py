@@ -28,6 +28,7 @@ import tornado.ioloop
 import tornado.web
 
 from . import expand as expand_mod
+from . import favorites as favorites_mod
 from . import images as images_mod
 from . import lyrics as lyrics_mod
 from . import pages as pages_mod
@@ -49,6 +50,9 @@ _FORMAT_CACHE_MAX = 256
 # once, so cover art gets its own workers rather than queueing behind lyrics
 # and stream formats on the shared pool.
 _ART_EXECUTOR = ThreadPoolExecutor(max_workers=8, thread_name_prefix="omarchy-tidal-art")
+
+# Liked track ids, held so the heart is not a walk of the whole list per track.
+_FAVORITE_IDS = favorites_mod.FavoriteIds()
 
 # Only Tidal's own asset host is fetchable through /art. Without this the
 # endpoint is an open proxy that anything on the machine could point at a
@@ -303,16 +307,8 @@ class FavoriteHandler(BaseHandler):
         if session is None:
             return
 
-        def work():
-            wanted = int(tid)
-            # tracks() is paginated; favorites can be large, so stop early.
-            for track in session.user.favorites.tracks(limit=1000):
-                if int(track.id) == wanted:
-                    return True
-            return False
-
         try:
-            is_fav = await self.run(work)
+            is_fav = await self.run(_FAVORITE_IDS.contains, session, tid)
         except Exception:
             logger.exception("Favorite lookup failed for %s", uri)
             is_fav = False
@@ -339,6 +335,7 @@ class FavoriteHandler(BaseHandler):
                 favorites.add_track(int(tid))
             else:
                 favorites.remove_track(int(tid))
+            _FAVORITE_IDS.note(tid, want)
             return True
 
         try:

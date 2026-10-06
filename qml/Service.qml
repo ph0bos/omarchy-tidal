@@ -455,17 +455,23 @@ Item {
 
   function refreshFavorite() {
     if (!companionAvailable || !isTidalTrack) return
-    Tidal.isFavorite(trackUri, function(r) { if (root.alive) root.favorite = !!(r && r.favorite) },
-                     function() {})
+    var forUri = trackUri
+    Tidal.isFavorite(forUri, function(r) {
+      // Drop late responses for a track we have already moved past.
+      if (!root.alive || forUri !== root.trackUri) return
+      root.favorite = !!(r && r.favorite)
+    }, function() {})
   }
 
   function toggleFavorite() {
     if (!isTidalTrack) { osd("No TIDAL track playing", "media"); return false }
     if (!companionAvailable) { osd("TIDAL companion not installed", "media"); return false }
     var next = !favorite
-    Tidal.setFavorite(trackUri, next, function() {
+    var forUri = trackUri
+    Tidal.setFavorite(forUri, next, function() {
       if (!root.alive) return
-      root.favorite = next
+      // The like was for the track that was playing when it was asked for.
+      if (forUri === root.trackUri) root.favorite = next
       root.osd(next ? "Added to favorites" : "Removed from favorites",
                next ? "heart" : "heart-outline")
     }, function(err) {
