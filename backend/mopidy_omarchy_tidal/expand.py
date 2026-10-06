@@ -63,3 +63,19 @@ def track_uris(items) -> list[str]:
 
 def playlist_track_uris(playlist) -> list[str]:
     return track_uris(playlist_items(playlist))
+
+
+def mix_track_uris(mix) -> list[str]:
+    """Every playable uri in a mix.
+
+    Mopidy has no mix ref type, so mopidy-tidal browses a mix into playlist
+    refs with `tidal:mix:` uris -- rows that look exactly like playlists to
+    the UI and arrive here when one is played. A mix answers all of its items
+    in one call; there is no paging to walk.
+    """
+    return track_uris(mix_items(mix))
+
+
+def mix_items(mix) -> list:
+    """Every item in a mix, in order. One call; there is no paging to walk."""
+    return _safe(mix.items, []) or []

@@ -32,6 +32,7 @@ from . import images as images_mod
 from . import lyrics as lyrics_mod
 from . import pages as pages_mod
 from . import palette as palette_mod
+from . import playlist_lookup as playlist_lookup_mod
 from . import text as text_mod
 from .session import SessionProvider, entity_id, track_id
 
@@ -373,6 +374,9 @@ class RadioHandler(BaseHandler):
                 tracks = session.track(int(tid)).get_track_radio()
             else:
                 tracks = session.artist(int(aid)).get_radio()
+            # A hundred tracks, all cold: unprimed, queueing them is three
+            # Tidal round trips each inside Mopidy's core.
+            playlist_lookup_mod.prime_items(tracks or [])
             return [f"tidal:track:{t.id}" for t in (tracks or [])]
 
         try:
@@ -450,6 +454,9 @@ class ArtistHandler(BaseHandler):
             artist = session.artist(int(aid))
             bio_text, bio_links = text_mod.clean(_safe(artist.get_bio))
             top = _safe(lambda: artist.get_top_tracks(limit=10), []) or []
+            # Picking a row plays from there on, a uri per row, so the rows
+            # are primed here as a playlist's are.
+            playlist_lookup_mod.prime_items(top)
             albums = _safe(lambda: artist.get_albums(limit=12), []) or []
             similar = _safe(artist.get_similar, []) or []
             return {
@@ -495,6 +502,7 @@ class AlbumHandler(BaseHandler):
             album = session.album(int(alid))
             review_text, review_links = text_mod.clean(_safe(album.review))
             tracks = _safe(album.tracks, []) or []
+            playlist_lookup_mod.prime_items(tracks)
             release = _safe(lambda: album.release_date)
             tags = getattr(album, "media_metadata_tags", None) or []
             return {
@@ -921,9 +929,12 @@ class PlaylistEditHandler(BaseHandler):
     async def get(self) -> None:
         uri = self.get_argument("uri", "")
         parsed = images_mod.split(uri)
-        if parsed is None or parsed[0] != "playlist":
+        # A mix deserves the same page: Mopidy has no mix type, so the sidebar
+        # shows mixes as playlist rows, and a row that opens must land
+        # somewhere with a Play button on it.
+        if parsed is None or parsed[0] not in ("playlist", "mix"):
             self.set_status(400)
-            self.write_json({"error": "expected a tidal:playlist: uri"})
+            self.write_json({"error": "expected a tidal:playlist: or tidal:mix: uri"})
             return
 
         session = self.session_or_503()
@@ -931,10 +942,38 @@ class PlaylistEditHandler(BaseHandler):
             return
 
         def work():
+            if parsed[0] == "mix":
+                mix = session.mix(parsed[1])
+                items = expand_mod.mix_items(mix)
+                # The page fetch already paid for these tracks in full, so
+                # prime them: picking a song starts playing without a single
+                # further API call.
+                playlist_lookup_mod.prime_items(items)
+                tracks = [p for p in (_item_payload(i) for i in items) if p]
+                duration = sum(int(t.get("duration") or 0) for t in tracks)
+                return {
+                    "uri": uri,
+                    "type": "mix",
+                    "name": str(getattr(mix, "title", "") or ""),
+                    # Mixes are TIDAL's, not anyone's: the byline says so
+                    # rather than sitting empty where a creator belongs.
+                    "creator": "TIDAL",
+                    "editable": False,
+                    "description": text_mod.clean(
+                        str(getattr(mix, "sub_title", "") or ""))[0],
+                    "image": image_of(mix, 640) or image_of(mix, 320),
+                    "num_tracks": len(tracks),
+                    "duration": duration or None,
+                    "last_updated": "",
+                    "tracks": tracks,
+                    "share_url": f"https://tidal.com/browse/mix/{parsed[1]}",
+                }
             playlist = session.playlist(parsed[1])
             creator = getattr(playlist, "creator", None)
+            items = _safe(lambda: playlist.tracks(limit=100), []) or []
+            playlist_lookup_mod.prime_items(items)
             tracks = []
-            for item in _safe(lambda: playlist.tracks(limit=100), []) or []:
+            for item in items:
                 payload = _item_payload(item)
                 if payload:
                     tracks.append(payload)
@@ -1048,9 +1087,13 @@ class PlaylistUrisHandler(BaseHandler):
     async def get(self) -> None:
         uri = self.get_argument("uri", "")
         parsed = images_mod.split(uri)
-        if parsed is None or parsed[0] != "playlist":
+        # Mixes arrive here too: Mopidy has no mix ref type, so mopidy-tidal
+        # browses every mix into a *playlist* ref with a `tidal:mix:` uri, and
+        # the UI cannot tell the two apart. Rejecting the mix shape made half
+        # of "My Mixes" silently unplayable.
+        if parsed is None or parsed[0] not in ("playlist", "mix"):
             self.set_status(400)
-            self.write_json({"error": "expected a tidal:playlist: uri"})
+            self.write_json({"error": "expected a tidal:playlist: or tidal:mix: uri"})
             return
 
         session = self.session_or_503()
@@ -1058,7 +1101,20 @@ class PlaylistUrisHandler(BaseHandler):
             return
 
         def work():
-            return expand_mod.playlist_track_uris(session.playlist(parsed[1]))
+            # Expanding fetches every track in full anyway, so prime them into
+            # the lookup path before answering: filling the queue then costs
+            # zero API calls instead of up to three per track, which is the difference
+            # between "play all" starting and it timing out on a long list.
+            if parsed[0] == "mix":
+                items = expand_mod.mix_items(session.mix(parsed[1]))
+            else:
+                items = expand_mod.playlist_items(session.playlist(parsed[1]))
+            primed = playlist_lookup_mod.prime_items(items)
+            uris = expand_mod.track_uris(items)
+            if primed:
+                logger.debug("omarchy-tidal: primed %d of %d tracks for %s",
+                             primed, len(uris), uri)
+            return uris
 
         try:
             uris = await self.run(work)

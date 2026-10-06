@@ -421,7 +421,7 @@ Item {
     var type = String(entry.type || "")
     if (type === "track") { root.playEntry(entry); return }
     root.pushHistory()
-    if (type === "album" || type === "artist" || type === "playlist") {
+    if (type === "album" || type === "artist" || type === "playlist" || type === "mix") {
       root.showDetail(uri, String(entry.name || ""))
       return
     }
@@ -430,8 +430,19 @@ Item {
 
   function playEntry(entry) {
     if (!entry || !entry.uri) return
-    Rpc.playNow([String(entry.uri)], null,
-                function(err) { if (root.alive) root.errorText = err })
+    var uri = String(entry.uri)
+    // A playlist or a mix is named track by track, for the reason queueRow
+    // gives: handing Mopidy the container is the trap.
+    if (uri.indexOf("tidal:playlist:") === 0 || uri.indexOf("tidal:mix:") === 0) {
+      Tidal.playlistUris(uri, function(payload) {
+        if (!root.alive) return
+        var uris = (payload && payload.uris) || []
+        if (!uris.length) { root.errorText = "Nothing in this playlist can be played."; return }
+        Rpc.playNow(uris, null, function(err) { if (root.alive) root.errorText = err })
+      }, function(err) { if (root.alive) root.errorText = err })
+      return
+    }
+    Rpc.playNow([uri], null, function(err) { if (root.alive) root.errorText = err })
   }
 
   function pushHistory() {

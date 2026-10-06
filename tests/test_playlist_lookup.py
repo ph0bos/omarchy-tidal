@@ -166,3 +166,111 @@ def test_never_caches_always_misses():
     except KeyError:
         return
     raise AssertionError("a read must raise KeyError -- that is how lookup() spells a miss")
+
+
+# ---- primed tracks -----------------------------------------------------------
+
+
+class MopidyTrack:
+    """Stands in for a mopidy Track model: opaque, truthy, not iterable."""
+
+    def __init__(self, uri):
+        self.uri = uri
+
+
+class LookupProvider:
+    """A provider whose original lookup counts how often it was consulted."""
+
+    def __init__(self):
+        self.asked = []
+
+    def lookup(self, uris=None):
+        self.asked.append(uris)
+        return ["slow-path"]
+
+
+def _patched_lookup_provider():
+    cls = type("P", (LookupProvider,), {})
+    playlist_lookup.apply(cls, mix_tracks=lambda session, mix_id: [])
+    return cls()
+
+
+def test_a_primed_uri_is_answered_without_the_slow_path():
+    provider = _patched_lookup_provider()
+    track = MopidyTrack("tidal:track:7:8:9")
+    playlist_lookup.prime([("tidal:track:9", track)])
+    assert provider.lookup("tidal:track:9") == [track]
+    assert provider.asked == [], "a primed track must cost no API calls"
+
+
+def test_an_unprimed_uri_still_takes_the_original_path():
+    provider = _patched_lookup_provider()
+    assert provider.lookup("tidal:track:404404404") == ["slow-path"]
+    assert provider.asked == ["tidal:track:404404404"]
+
+
+def test_a_one_element_list_counts_as_a_single_uri():
+    provider = _patched_lookup_provider()
+    track = MopidyTrack("tidal:track:1:2:3")
+    playlist_lookup.prime([("tidal:track:3", track)])
+    assert provider.lookup(["tidal:track:3"]) == [track]
+
+
+def test_a_many_uri_lookup_is_left_to_the_original():
+    """Order across a mixed hit/miss batch is the original's problem to solve
+    correctly; ours is only the per-uri hot path Mopidy's core actually uses."""
+    provider = _patched_lookup_provider()
+    playlist_lookup.prime([("tidal:track:1", MopidyTrack("t"))])
+    assert provider.lookup(["tidal:track:1", "tidal:track:2"]) == ["slow-path"]
+
+
+def test_the_primed_table_is_bounded():
+    playlist_lookup.prime(
+        [(f"tidal:track:bound{i}", MopidyTrack(str(i))) for i in range(6000)])
+    assert len(playlist_lookup._primed) <= playlist_lookup._PRIMED_MAX
+
+
+def test_prime_items_maps_tracks_and_skips_the_rest(monkeypatch):
+    """Against a stand-in mapper, so the path that primes is the one tested
+    whether or not mopidy-tidal is installed where this runs."""
+    import sys
+    import types
+
+    class Track:
+        def __init__(self, ident, odd=False):
+            self.id = ident
+            self.odd = odd
+
+    class Video:
+        id = 99
+
+    def create_mopidy_track(artist, album, item):
+        if item.odd:
+            raise ValueError("a track the mapper cannot read")
+        return MopidyTrack(f"tidal:track:0:0:{item.id}")
+
+    mappers = types.ModuleType("mopidy_tidal.full_models_mappers")
+    mappers.create_mopidy_track = create_mopidy_track
+    package = types.ModuleType("mopidy_tidal")
+    package.full_models_mappers = mappers
+    monkeypatch.setitem(sys.modules, "mopidy_tidal", package)
+    monkeypatch.setitem(sys.modules, "mopidy_tidal.full_models_mappers", mappers)
+
+    items = [Track(9001), Video(), Track(9002, odd=True), Track(9003)]
+    assert playlist_lookup.prime_items(items) == 2, "the video and the odd one are left out"
+
+    provider = _patched_lookup_provider()
+    assert provider.lookup("tidal:track:9003")[0].uri == "tidal:track:0:0:9003"
+    assert provider.lookup("tidal:track:9002") == ["slow-path"]
+    assert provider.asked == ["tidal:track:9002"]
+
+
+def test_prime_items_without_mopidy_tidal_primes_nothing_and_does_not_raise(monkeypatch):
+    import sys
+
+    monkeypatch.setitem(sys.modules, "mopidy_tidal", None)
+
+    class Track:
+        id = 1
+
+    assert playlist_lookup.prime_items([Track()]) == 0

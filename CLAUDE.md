@@ -171,6 +171,21 @@ way `gapless.py` does, and adds the `_lookup_mix` the library provider never had
 repair having taken: `/playlist/uris` names the tracks, and `DetailView.withUris()`
 sends those. Play-all on a container uri is a trap; send the tracks you mean.
 
+**Naming the tracks is not enough on its own: a cold track costs three round
+trips.** mopidy-tidal's `_lookup_track` fetches the track, its album and the
+album's tracks, once per uri, inside the one `core.tracklist.add`. Forty tracks
+outlive the client's 15s timeout, so `play()` is never sent. `/playlist`,
+`/playlist/uris`, `/album`, `/artist` and `/radio` therefore prime what they
+have just fetched into a table the wrapped `lookup` answers from, and
+`MopidyRpc.playNow` adds three tracks, starts, and appends the rest in tens --
+unless shuffle is on, when it adds everything first, because Mopidy picks the
+opening track from what is in the queue at that moment. A row that was clicked
+is started by its tlid, so it opens even then. Before each later chunk the tail
+asks Mopidy whether any of its opening tracks is still queued, and stops if the
+queue has been emptied since -- the opening ones, because a clear that lands
+during an add leaves that add's tracks behind. Mixes go the same way: Mopidy has no mix ref type, so
+they browse as playlist refs with a `tidal:mix:` uri.
+
 **PipeWire defaults to `allowed-rates = [48000]`** and silently resamples every
 hi-res stream. `omarchy-tidal-setup audio` fixes it. The *output device* still
 has the last word — many displays reject 88.2 kHz over HDMI/DisplayPort.

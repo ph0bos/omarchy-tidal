@@ -39,6 +39,8 @@ extension untouched and the patch simply stays off.
 from __future__ import annotations
 
 import logging
+import threading
+from collections import OrderedDict
 
 logger = logging.getLogger(__name__)
 
@@ -47,6 +49,82 @@ _PATCHED_FLAG = "_omarchy_tidal_playlist_lookup"
 # Where the real cache would have lived. The descriptor below occupies the
 # class attribute, so the per-instance object is parked under its own key.
 _SLOT = "_omarchy_tidal_never_caches"
+
+# ---- primed tracks ----------------------------------------------------------
+#
+# Filling the queue is `core.library.lookup()` once per uri, and mopidy-tidal's
+# `_lookup_track` answers a cold uri with a request for the album and another
+# for its tracks -- and, for the short `tidal:track:<id>` form this plugin
+# sends, one for the track first. Forty tracks is over a hundred sequential
+# API calls inside one "play all", which outlives the client's timeout or
+# trips Tidal's rate limiter; either way playback never starts. A playlist
+# whose tracks were recently browsed sits in mopidy-tidal's own cache and
+# plays fine, which is exactly why the failure looked arbitrary.
+#
+# The companion has already fetched every one of those tracks, in full, when
+# it expanded the playlist -- so it primes them here, and the wrapped lookup
+# below answers from this table without touching the network at all.
+_PRIMED_MAX = 5000
+_primed: OrderedDict = OrderedDict()
+_primed_lock = threading.Lock()
+
+
+def prime(pairs) -> int:
+    """Remember (uri, mopidy-track) pairs for the lookups about to happen."""
+    count = 0
+    with _primed_lock:
+        for uri, track in pairs or []:
+            if not uri or track is None:
+                continue
+            _primed.pop(uri, None)
+            _primed[uri] = track
+            count += 1
+        while len(_primed) > _PRIMED_MAX:
+            _primed.popitem(last=False)
+    return count
+
+
+def prime_items(items) -> int:
+    """Best effort: map tidalapi tracks to Mopidy tracks and prime them.
+
+    One odd item must not cost the rest their fast path, so mapping failures
+    are skipped rather than raised. Returns how many were primed; zero means
+    lookups fall back to mopidy-tidal's own (slow) path, which still works.
+    """
+    try:
+        from mopidy_tidal import full_models_mappers
+    except Exception:
+        return 0
+    pairs = []
+    for item in items or []:
+        if type(item).__name__.lower() != "track":
+            continue
+        ident = getattr(item, "id", None)
+        if ident is None:
+            continue
+        try:
+            track = full_models_mappers.create_mopidy_track(None, None, item)
+        except Exception:
+            continue
+        pairs.append((f"tidal:track:{ident}", track))
+    return prime(pairs)
+
+
+def _primed_hit(uris):
+    """The primed track for a single-uri lookup, or None.
+
+    Mopidy's core calls each backend's lookup one uri at a time, so the single
+    string is the hot path; a one-element list is accepted for symmetry with
+    mopidy-tidal's own signature. Anything else is not ours to answer.
+    """
+    if isinstance(uris, str):
+        key = uris
+    elif isinstance(uris, (list, tuple)) and len(uris) == 1 and isinstance(uris[0], str):
+        key = uris[0]
+    else:
+        return None
+    with _primed_lock:
+        return _primed.get(key)
 
 
 class NeverCaches(dict):
@@ -105,6 +183,20 @@ def apply(provider_cls, mix_tracks) -> None:
         return mix_tracks(session, parts[2])
 
     provider_cls._lookup_mix = _lookup_mix
+
+    # Serve primed tracks before mopidy-tidal's own lookup gets to spend up to
+    # three API round trips deriving what the companion already knows in full.
+    orig_lookup = getattr(provider_cls, "lookup", None)
+    if orig_lookup is not None and not getattr(orig_lookup, "_omarchy_primed", False):
+
+        def lookup(self, uris=None):
+            hit = _primed_hit(uris)
+            if hit is not None:
+                return [hit]
+            return orig_lookup(self, uris)
+
+        lookup._omarchy_primed = True
+        provider_cls.lookup = lookup
 
 
 def install() -> bool:

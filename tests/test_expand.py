@@ -103,3 +103,29 @@ def test_a_failing_page_ends_the_walk_rather_than_raising():
             raise RuntimeError("tidal said no")
 
     assert expand.playlist_track_uris(Broken([])) == []
+
+
+# ---- mixes -----------------------------------------------------------------
+
+
+class Mix:
+    """A mix answers everything in one call; there is no paging."""
+
+    def __init__(self, items):
+        self._items = items
+
+    def items(self):
+        return self._items
+
+
+def test_a_mix_expands_like_a_playlist():
+    mix = Mix([Track(1), Video(9), Track(2)])
+    assert expand.mix_track_uris(mix) == ["tidal:track:1", "tidal:track:2"]
+
+
+def test_a_mix_that_fails_to_answer_is_empty_rather_than_an_error():
+    class Broken:
+        def items(self):
+            raise RuntimeError("tidal hiccup")
+
+    assert expand.mix_track_uris(Broken()) == []

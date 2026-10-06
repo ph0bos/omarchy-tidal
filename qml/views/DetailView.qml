@@ -43,13 +43,18 @@ Item {
 
   readonly property bool isArtist: uri.indexOf("tidal:artist:") === 0
   readonly property bool isPlaylist: uri.indexOf("tidal:playlist:") === 0
+  // Mixes wear a playlist ref in Mopidy's tree and get the same page here;
+  // the flag is separate because a mix is never editable and never yours.
+  readonly property bool isMix: uri.indexOf("tidal:mix:") === 0
+  // Either of the two: a list of other people's records rather than one record.
+  readonly property bool isList: isPlaylist || isMix
 
   // Each kind calls its prose something different and TIDAL returns it under a
   // different name; the page shows it in the same place regardless.
   readonly property string body: {
     if (!page) return ""
     if (isArtist) return String(page.bio || "")
-    if (isPlaylist) return String(page.description || "")
+    if (isList) return String(page.description || "")
     if (page.review) return String(page.review)
     // TIDAL writes a review for maybe one release in five. Rather than leave
     // the page with nothing to read, an album with no review borrows the
@@ -58,7 +63,7 @@ Item {
   }
   readonly property string bodyLabel: {
     if (isArtist) return "BIOGRAPHY"
-    if (isPlaylist) return "ABOUT"
+    if (isList) return "ABOUT"
     if (page && page.review) return "REVIEW"
     return artistPage && artistPage.name
       ? "ABOUT " + String(artistPage.name).toUpperCase() : "REVIEW"
@@ -83,7 +88,7 @@ Item {
     })
   }
   readonly property var mentions: {
-    if (!page || isPlaylist) return []
+    if (!page || isList) return []
     var all = (isArtist ? page.bio_links
       : (page.review ? page.review_links
          : (artistPage ? artistPage.bio_links : []))) || []
@@ -119,6 +124,7 @@ Item {
     var wantArtist = want.indexOf("tidal:artist:") === 0
     var wantAlbum = want.indexOf("tidal:album:") === 0
     var wantPlaylist = want.indexOf("tidal:playlist:") === 0
+                    || want.indexOf("tidal:mix:") === 0
     if (!wantArtist && !wantAlbum && !wantPlaylist) {
       root.errorText = "No page for " + want
       return
@@ -226,7 +232,7 @@ Item {
   // nothing at all. The companion names the real tracks instead, which also
   // reaches past the hundred rows the page itself draws.
   function withUris(onReady) {
-    if (!root.isPlaylist) { onReady([root.uri]); return }
+    if (!root.isList) { onReady([root.uri]); return }
     var want = root.uri
     Tidal.playlistUris(want, function(payload) {
       if (!root.alive || root.uri !== want) return
@@ -244,6 +250,44 @@ Item {
     root.withUris(function(uris) {
       Rpc.playNow(uris, null, function(err) { if (root.alive) root.errorText = err })
     })
+  }
+
+  // Play the page from this track to the bottom -- the answer every player
+  // gives to a click on a playlist row: the song you chose, then the rest of
+  // the list behind it. Playing the bare track alone left a one-song queue
+  // that stopped when it ended, which read as the playlist refusing to play.
+  function playFrom(trackUri, rowIndex) {
+    if (root.isList) {
+      // The page draws at most a hundred rows but the uris name every track,
+      // so the slice is taken from the full list, not from what is visible.
+      root.withUris(function(uris) {
+        // The row's own position first: a playlist can hold a song twice, and
+        // the second one clicked should not start from the first. The two
+        // lists line up unless a video was left out of one of them, so the
+        // position is checked and the first match is the fallback.
+        var at = -1
+        if (rowIndex >= 0 && rowIndex < uris.length
+            && Library.sameTrack(String(uris[rowIndex]), trackUri)) at = rowIndex
+        for (var i = 0; at < 0 && i < uris.length; i++) {
+          if (Library.sameTrack(String(uris[i]), trackUri)) at = i
+        }
+        // Not in the list at all: play what was asked for, not the top of a
+        // list it is not in.
+        Rpc.playNow(at < 0 ? [trackUri] : uris.slice(at), null,
+                    function(err) { if (root.alive) root.errorText = err }, true)
+      })
+      return
+    }
+    // Albums and artist top tracks hold every row on the page already.
+    var uris = []
+    var found = false
+    for (var i = 0; i < root.tracks.length; i++) {
+      var u = String(root.tracks[i].uri || "")
+      if (!found && Library.sameTrack(u, trackUri)) found = true
+      if (found && u) uris.push(u)
+    }
+    if (!uris.length) uris = [trackUri]
+    Rpc.playNow(uris, null, function(err) { if (root.alive) root.errorText = err }, true)
   }
 
   function queueAll() {
@@ -270,7 +314,7 @@ Item {
   // The label and the exact release date -- the things a record sleeve prints
   // in small type on the back, kept in small type here.
   readonly property string imprintLine: {
-    if (!page || isArtist || isPlaylist) return ""
+    if (!page || isArtist || isList) return ""
     var parts = []
     var when = Design.releaseDate(page.release_date)
     if (when !== "") parts.push("Released " + when)
@@ -293,7 +337,7 @@ Item {
       }
       return parts.join(" · ")
     }
-    if (isPlaylist && page.creator) parts.push("by " + page.creator)
+    if (isList && page.creator) parts.push("by " + page.creator)
     // An album's artist gets a line of its own above this one, because it is
     // a link rather than a fact.
     if (page.artist && !page.artist_uri) parts.push(page.artist)
@@ -642,11 +686,11 @@ Item {
               // On an album page every row would otherwise repeat the album
               // name and the artist already in the hero above it. On an artist
               // page the record a top track comes from is worth saying.
-              artist: root.isPlaylist ? (modelData.artist || "") : "",
-              album: root.isArtist || root.isPlaylist ? (modelData.album || "") : "",
+              artist: root.isList ? (modelData.artist || "") : "",
+              album: root.isArtist || root.isList ? (modelData.album || "") : "",
               subtitle: "",
               image: modelData.image || "",
-              num: root.isPlaylist ? 0 : (modelData.track_num || 0),
+              num: root.isList ? 0 : (modelData.track_num || 0),
               duration: modelData.duration || 0,
               type: "track",
               // Everything this row shows is already decided here, so it must
@@ -670,7 +714,7 @@ Item {
             onReorderDragged: function(dy, rowHeight) { root.updateReorder(dy, rowHeight) }
             onReorderEnded: root.commitReorder()
 
-            onActivated: Rpc.playNow([trackItem.modelData.uri])
+            onActivated: root.playFrom(String(trackItem.modelData.uri), trackItem.index)
             onQueued: Rpc.queue([trackItem.modelData.uri], function() {
               // Saving a file hot-reloads this view out from under an
               // in-flight request; reading svc afterwards is a use-after-free.

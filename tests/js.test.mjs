@@ -11,8 +11,8 @@ import { fileURLToPath } from "node:url";
 
 const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
 
-function load(relative) {
-  const context = { console };
+function load(relative, extra = {}) {
+  const context = { console, ...extra };
   vm.createContext(context);
   vm.runInContext(readFileSync(path.join(root, relative), "utf8"), context);
   return context;
@@ -21,6 +21,211 @@ function load(relative) {
 const Lrc = load("qml/lib/Lrc.js");
 const Library = load("qml/lib/Library.js");
 const Design = load("qml/lib/Design.js");
+
+// ---- MopidyRpc.js -----------------------------------------------------------
+
+// Answers are held until the test releases them, so two plays can overlap.
+//
+// `mopidy: true` answers the way Mopidy does -- add returns the TlTracks it
+// made, filter says which are still queued, clear empties the queue -- and
+// `unplayable` names uris that resolve to nothing.
+function rpcHarness({ shuffle = false, mopidy = false, unplayable = [] } = {}) {
+  const pending = [];
+  const sent = [];
+  const queued = new Map();
+  const played = [];
+  let nextTlid = 1;
+  const answer = (call) => {
+    if (call.method === "core.tracklist.get_random") return shuffle;
+    if (!mopidy) return null;
+    if (call.method === "core.tracklist.clear") { queued.clear(); return null; }
+    if (call.method === "core.tracklist.add") {
+      return call.params.uris.filter((u) => !unplayable.includes(u)).map((uri) => {
+        const tlid = nextTlid++;
+        queued.set(tlid, uri);
+        return { tlid, track: { uri } };
+      });
+    }
+    if (call.method === "core.tracklist.filter") {
+      return call.params.criteria.tlid.filter((t) => queued.has(t)).map((tlid) => ({ tlid }));
+    }
+    return null;
+  };
+  class Held {
+    static DONE = 4;
+    open() {}
+    setRequestHeader() {}
+    send(body) {
+      const call = JSON.parse(body);
+      sent.push(call.method === "core.tracklist.add" ? call.params.uris : call.method);
+      if (call.method === "core.playback.play") played.push(call.params ? call.params.tlid : null);
+      pending.push(() => {
+        // Answered when released, not when sent: what Mopidy says depends on
+        // what else has reached it by then.
+        const result = answer(call);
+        this.status = 200;
+        this.responseText = JSON.stringify({ jsonrpc: "2.0", id: call.id, result });
+        this.readyState = Held.DONE;
+        this.onreadystatechange();
+      });
+    }
+  }
+  const Rpc = load("qml/lib/MopidyRpc.js", { XMLHttpRequest: Held });
+  const drain = () => { while (pending.length) pending.shift()(); };
+  const shape = () => sent.map((x) => Array.isArray(x) ? x.length : x.replace(/^core\.\w+\./, ""));
+  return { Rpc, sent, pending, drain, shape, queued, played };
+}
+
+const uris = (n, prefix = "t") => Array.from({ length: n }, (_, i) => prefix + (i + 1));
+
+test("playNow starts on the first few tracks and appends the rest in chunks", () => {
+  const { Rpc, sent, drain, shape } = rpcHarness();
+  let started = 0;
+  Rpc.playNow(uris(25), () => { started++; });
+  drain();
+  assert.equal(started, 1);
+  assert.deepEqual(shape(), ["get_random", "clear", 3, "play", 10, 10, 2]);
+  assert.deepEqual(sent.filter(Array.isArray).flat(), uris(25));
+});
+
+test("with shuffle on, everything is queued before play is sent", () => {
+  // Mopidy picks the opening track from what is queued when play arrives.
+  const { Rpc, sent, drain, shape } = rpcHarness({ shuffle: true });
+  let started = 0;
+  Rpc.playNow(uris(25), () => { started++; });
+  drain();
+  assert.equal(started, 1);
+  assert.deepEqual(shape(), ["get_random", "clear", 10, 10, 5, "play"]);
+  assert.deepEqual(sent.filter(Array.isArray).flat(), uris(25));
+});
+
+test("a second playNow stops the first one's tail from landing in its queue", () => {
+  const { Rpc, sent, pending, drain } = rpcHarness();
+  Rpc.playNow(uris(25, "a"));
+  // Answer the shuffle question, clear, the first three and play: the tail's
+  // first chunk is now out.
+  for (let i = 0; i < 4; i++) pending.shift()();
+  Rpc.playNow(uris(4, "b"));
+  drain();
+  const secondClear = sent.lastIndexOf("core.tracklist.clear");
+  assert.deepEqual(sent.slice(secondClear + 1).filter(Array.isArray).flat(), uris(4, "b"));
+  assert.ok(!sent.flat().includes("a14"), "the first play's tail stopped where it was");
+});
+
+test("a second playNow before the first has added anything leaves only its own tracks", () => {
+  for (const answered of [0, 1, 2]) {
+    const { Rpc, sent, pending, drain } = rpcHarness();
+    Rpc.playNow(uris(25, "a"));
+    for (let i = 0; i < answered; i++) pending.shift()();
+    Rpc.playNow(uris(4, "b"));
+    drain();
+    const added = sent.filter(Array.isArray).flat();
+    const afterLastClear = sent.slice(sent.lastIndexOf("core.tracklist.clear") + 1)
+      .filter(Array.isArray).flat();
+    assert.deepEqual(afterLastClear, uris(4, "b"), `after ${answered} answers`);
+    assert.equal(sent.filter((x) => x === "core.playback.play").length, 1, "one play, the second's");
+    assert.ok(added.filter((u) => u.startsWith("a")).length <= 3);
+  }
+});
+
+test("playNow copes with nothing, one track, and no answer about shuffle", () => {
+  for (const n of [0, 1, 3, 4]) {
+    const { Rpc, drain, shape } = rpcHarness();
+    Rpc.playNow(uris(n));
+    drain();
+    assert.deepEqual(shape().slice(0, 4), ["get_random", "clear", Math.min(n, 3), "play"]);
+  }
+});
+
+test("a clicked track opens even with shuffle on; play all leaves the draw to Mopidy", () => {
+  const picked = rpcHarness({ shuffle: true, mopidy: true });
+  picked.Rpc.playNow(uris(25), null, null, true);
+  picked.drain();
+  assert.deepEqual(picked.played, [1], "the tlid the first uri was given");
+  assert.equal(picked.queued.get(1), "t1");
+  assert.equal(picked.queued.size, 25);
+
+  const all = rpcHarness({ shuffle: true, mopidy: true });
+  all.Rpc.playNow(uris(25));
+  all.drain();
+  assert.deepEqual(all.played, [null], "a bare play(): any of them may open");
+});
+
+test("without shuffle the first track is started by tlid", () => {
+  const { Rpc, drain, played, queued } = rpcHarness({ mopidy: true });
+  Rpc.playNow(uris(25));
+  drain();
+  assert.deepEqual(played, [1]);
+  assert.deepEqual([...queued.values()], uris(25));
+});
+
+test("a tail stops when another view has replaced the queue", () => {
+  // Each QML component gets its own copy of the script, so the two views do
+  // not share a serial: only Mopidy can say the queue is no longer this one's.
+  const first = rpcHarness({ mopidy: true });
+  first.Rpc.playNow(uris(25, "a"));
+  // get_random, clear, the first three, play, the "still queued?" question and
+  // the first chunk of the tail.
+  for (let i = 0; i < 6; i++) first.pending.shift()();
+  assert.equal(first.queued.size, 13);
+  first.queued.clear();               // the other view's clear()
+  first.queued.set(900, "other");     // and its own track
+  first.drain();
+  assert.deepEqual([...first.queued.values()], ["other"]);
+});
+
+test("a tail stops even when the other view's clear lands during one of its adds", () => {
+  // Found against a live Mopidy: the add in flight survives the clear, so a
+  // tail that asked after its latest chunk saw it queued and carried on.
+  const first = rpcHarness({ mopidy: true });
+  first.Rpc.playNow(uris(45, "a"));
+  // Up to and including the "still queued?" question; the tail's first add is
+  // now on its way.
+  for (let i = 0; i < 5; i++) first.pending.shift()();
+  first.queued.clear();
+  first.queued.set(900, "other");
+  first.drain();
+  const left = [...first.queued.values()];
+  assert.equal(left.length, 11, "the add that was in flight, and nothing after it");
+  assert.ok(!left.includes("a14"));
+});
+
+test("clear and stop end a playNow that is still filling the queue", () => {
+  for (const end of ["clear", "stop"]) {
+    const { Rpc, sent, pending, drain } = rpcHarness({ mopidy: true });
+    Rpc.playNow(uris(25, "a"));
+    for (let i = 0; i < 4; i++) pending.shift()();
+    Rpc[end]();
+    drain();
+    const after = sent.slice(sent.lastIndexOf(end === "clear" ? "core.tracklist.clear" : "core.playback.stop") + 1);
+    assert.deepEqual(after.filter(Array.isArray), [], `nothing added after ${end}()`);
+  }
+});
+
+test("an opening that resolves to nothing is skipped rather than played", () => {
+  const some = rpcHarness({ mopidy: true, unplayable: ["t1", "t2", "t3"] });
+  let started = 0;
+  some.Rpc.playNow(uris(8), () => { started++; });
+  some.drain();
+  assert.equal(started, 1);
+  assert.equal(some.queued.get(some.played[0]), "t4");
+
+  const none = rpcHarness({ mopidy: true, unplayable: uris(5) });
+  let said = "";
+  none.Rpc.playNow(uris(5), null, (err) => { said = err; });
+  none.drain();
+  assert.deepEqual(none.played, []);
+  assert.match(said, /can be played/);
+});
+
+test("queue appends in chunks and reports once at the end", () => {
+  const { Rpc, sent, drain } = rpcHarness();
+  let done = 0;
+  Rpc.queue(uris(12), () => { done++; });
+  drain();
+  assert.equal(done, 1);
+  assert.deepEqual(sent.map((x) => x.length), [10, 2]);
+});
 
 // ---- Lrc.js -----------------------------------------------------------------
 
