@@ -147,6 +147,12 @@ navigation swallows Up and Down before the parent sees them.
 alpha it fails to import and MPRIS never registers — which silently breaks the
 bar widget, the media keys and the OSD.
 
+**`check_login()` cannot tell "signed out" from "Tidal is busy".** It is `.ok`
+on one request, so a 429 or a 503 reads as a 401. `SessionProvider._ask` makes
+the same request and treats only 401 and 403 as a no. A refused session is
+rebuilt inside `logged_in()`, on the executor: handlers call `get()` on
+Mopidy's IOLoop, and a rebuild is a request to Tidal.
+
 **Hi-res is MPEG-DASH, and mopidy-tidal writes every manifest to one shared
 filename.** `about-to-finish` fires while the current track plays, so resolving
 the next one overwrote the manifest the current one was reading: a stall at
